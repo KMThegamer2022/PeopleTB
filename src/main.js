@@ -6,7 +6,7 @@ const fs = require('fs');
 const BASE_W = 330;
 const ABOVE = 156; // height of the part of the pet above the taskbar (base px)
 
-const defaults = { scale: 1, position: 0.5, startup: false, visible: true };
+const defaults = { scale: 1.5, position: 0.5, startup: false, visible: true };
 let settings = { ...defaults };
 let pet, settingsWin, tray;
 let quitting = false;

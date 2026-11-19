@@ -4,7 +4,7 @@ const cv = document.getElementById('c');
 const ctx = cv.getContext('2d');
 const load = (src) => new Promise((r) => { const i = new Image(); i.onload = () => r(i); i.src = src; });
 
-let head, arm, ready = false, bounce = 0, bounceT = -1, ignoring = true;
+let head, handL, handR, ready = false, bounce = 0, bounceT = -1, ignoring = true;
 let k = 1; // device px per base unit
 
 function resize() {
@@ -16,17 +16,10 @@ function resize() {
 window.addEventListener('resize', resize);
 window.jack.onScale(() => setTimeout(resize, 50));
 
-const HEAD_W = 170, HAND_W = 96;
-function drawHand(cx, y, side) {
-  // bottom part of the arm photo (fist + cuff), turned upright: hands cupped on the taskbar, fingers up
-  const sy = 190, sh = arm.height - sy;
-  const h = HAND_W * sh / arm.width;
-  ctx.save();
-  ctx.translate(cx, y);
-  ctx.scale(side, 1);
-  ctx.rotate(Math.PI - 0.35);
-  ctx.drawImage(arm, 0, sy, arm.width, sh, -HAND_W / 2, -h / 2, HAND_W, h);
-  ctx.restore();
+const HEAD_W = 170, HAND_K = 0.34, HAND_OFF = 121;
+function drawHand(img, cx, bottom) {
+  const w = img.width * HAND_K, h = img.height * HAND_K;
+  ctx.drawImage(img, cx - w / 2, bottom - h, w, h);
 }
 function draw(t) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -51,9 +44,10 @@ function draw(t) {
   ctx.drawImage(head, -HEAD_W / 2, -headH + bob, HEAD_W, headH);
   ctx.restore();
 
-  // hands IN FRONT of the taskbar, cupped to catch it
-  drawHand(cx - 105, groundY + 14, 1);
-  drawHand(cx + 105, groundY + 14, -1);
+  // hands IN FRONT of the taskbar, resting on its bottom edge, fingers reaching up over the top
+  const bottom = cv.height / k;
+  drawHand(handL, cx - HAND_OFF, bottom);
+  drawHand(handR, cx + HAND_OFF, bottom);
 }
 
 function loop(t) { if (ready) draw(t); requestAnimationFrame(loop); }
@@ -76,7 +70,7 @@ window.addEventListener('mousedown', (e) => {
 });
 window.addEventListener('contextmenu', (e) => e.preventDefault());
 
-Promise.all([load('../assets/head.png'), load('../assets/arm.png')]).then(([h, a]) => {
-  head = h; arm = a; resize(); ready = true;
+Promise.all([load('../assets/head.png'), load('../assets/hand-left.png'), load('../assets/hand-right.png')]).then(([h, l, r]) => {
+  head = h; handL = l; handR = r; resize(); ready = true;
 });
 requestAnimationFrame(loop);
