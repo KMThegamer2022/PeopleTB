@@ -1,42 +1,144 @@
-// Pet is drawn in base units (270 x 140) and scaled to the window size.
-const BASE_W = 330, ABOVE = 156;
+// The pet window is a full-width, click-through overlay along the taskbar.
+// The character is drawn (in "base" units) onto an offscreen layer, then composited at its position.
+const BASE_W = 330, ABOVE = 190;
 const cv = document.getElementById('c');
 const ctx = cv.getContext('2d');
+const petCv = document.createElement('canvas');
+const pctx = petCv.getContext('2d', { willReadFrequently: true });
+const tintCv = document.createElement('canvas');
+const tctx = tintCv.getContext('2d');
 const load = (src) => new Promise((r) => { const i = new Image(); i.onload = () => r(i); i.src = src; });
-
-let head, handL, handR, ready = false, bounce = 0, bounceT = -1, ignoring = true;
-let k = 1, hidden = 0, hiddenTarget = 0, lastT = 0; // hidden: 0 = clinging, 1 = tucked away
-window.jack.onFullscreen((fs) => { hiddenTarget = fs ? 1 : 0; });
 const ease = (x) => x * x * (3 - 2 * x);
-const clamp01 = (x) => Math.max(0, Math.min(1, x)); // device px per base unit
+const clamp01 = (x) => Math.max(0, Math.min(1, x));
+
+let head, handL, handR, ready = false, bounceT = -1, ignoring = true;
+let hidden = 0, hiddenTarget = 0, lastT = 0; // hidden: 0 = clinging, 1 = tucked away (fullscreen)
+let scale = 1.5, position = 0.5, headW = 170;
+let dpr = 1, W = 0, H = 0, petLeft = 0, pw = 0;
+window.jack.onFullscreen((fs) => { hiddenTarget = fs ? 1 : 0; });
 
 function resize() {
-  const dpr = window.devicePixelRatio || 1;
-  cv.width = Math.round(cv.clientWidth * dpr);
-  cv.height = Math.round(cv.clientHeight * dpr);
-  k = cv.width / BASE_W;
+  dpr = window.devicePixelRatio || 1;
+  W = cv.clientWidth; H = cv.clientHeight;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  pw = Math.round(BASE_W * scale);
+  petCv.width = Math.round(pw * dpr); petCv.height = cv.height;
 }
 window.addEventListener('resize', resize);
 window.jack.onScale(() => setTimeout(resize, 50));
 
-let headW = 170;
+// ---------- overheat easter egg ----------
+let cfg = { enabled: true, hotSpeed: 1100, secondsToWarn: 5, secondsAfterWarnToCommand: 4, message: "Please stop! I'm getting too hot!!" };
+window.jack.getOverheat().then((c) => { cfg = { ...cfg, ...c }; });
+let dragging = false, grabDX = 0, downX = 0, moved = false;
+let speed = 0, prevLeft = null, heat = 0, overTime = 0, firedLatch = false, bubbleUntil = 0;
+const particles = [];
+
+function updateHeat(dt, now) {
+  const left = (W - pw) * position;
+  if (prevLeft !== null && dt > 0) {
+    const inst = dragging ? Math.abs(left - prevLeft) / dt : 0;
+    speed += (inst - speed) * Math.min(1, dt * 12);
+  }
+  prevLeft = left; petLeft = left;
+  const hot = cfg.enabled && dragging && speed > cfg.hotSpeed;
+  if (hot) {
+    const boost = 1 + clamp01((speed - cfg.hotSpeed) / 2000) * 0.5;
+    heat = Math.min(1.3, heat + dt * boost / cfg.secondsToWarn);   // reaches 1.0 after ~secondsToWarn
+  } else {
+    heat = Math.max(0, heat - dt * 0.12);                         // slowly cools back to normal (~10 s)
+  }
+  if (heat >= 1) bubbleUntil = now + 3500;
+  if (hot && heat >= 1) {
+    overTime += dt;
+    if (overTime >= cfg.secondsAfterWarnToCommand && !firedLatch) { firedLatch = true; window.jack.overheatFire(); }
+  } else if (!hot) overTime = 0;
+  if (heat < 0.15) firedLatch = false;
+
+  // smoke trail from the hands
+  if (heat > 0.4 && (speed > 150 || heat > 0.8)) {
+    const n = (dt * 70 * (heat - 0.3)) * (0.4 + clamp01(speed / 1500));
+    let count = Math.floor(n) + (Math.random() < n % 1 ? 1 : 0);
+    while (count-- > 0 && particles.length < 500) {
+      const side = Math.random() < 0.5 ? -1 : 1;
+      particles.push({
+        x: petLeft + pw / 2 + side * 121 * scale + (Math.random() - 0.5) * 20 * scale,
+        y: H - (14 + Math.random() * 18) * scale,
+        vx: (Math.random() - 0.5) * 18, vy: -(18 + Math.random() * 30),
+        r: (3 + Math.random() * 3) * scale, grow: (9 + Math.random() * 8) * scale,
+        age: 0, life: 2.4 + Math.random() * 1.2
+      });
+    }
+  }
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i]; p.age += dt;
+    if (p.age >= p.life) { particles.splice(i, 1); continue; }
+    p.x += p.vx * dt; p.y += p.vy * dt; p.r += p.grow * dt;
+  }
+}
+
+function drawSmoke() {
+  for (const p of particles) {
+    const a = Math.pow(1 - p.age / p.life, 1.3) * 0.5;
+    const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
+    g.addColorStop(0, `rgba(120,120,120,${a})`);
+    g.addColorStop(1, 'rgba(120,120,120,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+function drawBubble(now) {
+  if (now > bubbleUntil) return;
+  const text = cfg.message;
+  const shake = Math.sin(now / 35) * 1.5;
+  ctx.save();
+  ctx.font = 'bold 15px "Segoe UI", sans-serif';
+  const tw = ctx.measureText(text).width, bw = tw + 26, bh = 34;
+  let bx = petLeft + pw / 2 - bw / 2 + shake;
+  bx = Math.max(4, Math.min(W - bw - 4, bx));
+  const by = 4;
+  ctx.fillStyle = '#fff'; ctx.strokeStyle = '#d33'; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, 12); ctx.fill(); ctx.stroke();
+  const tx = petLeft + pw / 2 + shake;
+  ctx.beginPath(); ctx.moveTo(tx - 8, by + bh); ctx.lineTo(tx, by + bh + 10); ctx.lineTo(tx + 8, by + bh); ctx.closePath();
+  ctx.fillStyle = '#fff'; ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#fff'; ctx.fillRect(tx - 7, by + bh - 2, 14, 3);
+  ctx.fillStyle = '#c00'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+  ctx.fillText(text, bx + bw / 2, by + bh / 2 + 1);
+  ctx.restore();
+}
+
+// ---------- character ----------
 const HAND_K = 0.34, HAND_OFF = 121;
 function drawHand(img, cx, bottom) {
   const w = img.width * HAND_K, h = img.height * HAND_K;
-  ctx.drawImage(img, cx - w / 2, bottom - h, w, h);
+  const tint = clamp01(heat);
+  if (tint < 0.02) { pctx.drawImage(img, cx - w / 2, bottom - h, w, h); return; }
+  // red-hot tint: draw the hand, then paint red over only its opaque pixels
+  tintCv.width = img.width; tintCv.height = img.height;
+  tctx.clearRect(0, 0, tintCv.width, tintCv.height);
+  tctx.drawImage(img, 0, 0);
+  tctx.globalCompositeOperation = 'source-atop';
+  tctx.fillStyle = `rgba(255,${Math.round(40 - tint * 20)},10,${(0.8 * tint).toFixed(3)})`;
+  tctx.fillRect(0, 0, tintCv.width, tintCv.height);
+  tctx.globalCompositeOperation = 'source-over';
+  pctx.drawImage(tintCv, cx - w / 2, bottom - h, w, h);
 }
-function draw(t) {
-  const dt = Math.min(0.1, (t - lastT) / 1000); lastT = t;
+
+function drawPet(t, dt) {
   hidden += Math.sign(hiddenTarget - hidden) * Math.min(Math.abs(hiddenTarget - hidden), dt / 0.9);
   const handDrop = ease(clamp01(hidden / 0.45));          // hands drop away first
-  const headDrop = ease(clamp01((hidden - 0.3) / 0.7));   // then Jack slides down behind the taskbar
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.clearRect(0, 0, cv.width, cv.height);
-  ctx.setTransform(k, 0, 0, k, 0, 0);
+  const headDrop = ease(clamp01((hidden - 0.3) / 0.7));   // then the character slides down behind the taskbar
+  pctx.setTransform(1, 0, 0, 1, 0, 0);
+  pctx.clearRect(0, 0, petCv.width, petCv.height);
+  const k = scale * dpr;
+  pctx.setTransform(k, 0, 0, k, 0, 0);
   const groundY = ABOVE;                      // taskbar top edge
   const headH = headW * head.height / head.width;
   const cx = BASE_W / 2;
-  const sway = Math.sin(t / 900) * 1.2 * Math.PI / 180;
+  const hot = clamp01(heat);
+  const sway = Math.sin(t / (900 - hot * 600)) * (1.2 + hot * 2.5) * Math.PI / 180;
   let hop = 0;
   if (bounceT >= 0) {
     const p = (t - bounceT) / 450;
@@ -44,41 +146,70 @@ function draw(t) {
   }
   const bob = Math.sin(t / 700) * 1.5 - hop;
 
-  // Jack is BEHIND the taskbar: body clipped at its top edge
-  ctx.save();
-  ctx.beginPath(); ctx.rect(0, 0, BASE_W, groundY); ctx.clip();
-  ctx.translate(cx, groundY + 8 + headDrop * (headH + 24));
-  ctx.rotate(sway);
-  ctx.drawImage(head, -headW / 2, -headH + bob, headW, headH);
-  ctx.restore();
+  // behind the taskbar: body clipped at its top edge
+  pctx.save();
+  pctx.beginPath(); pctx.rect(0, 0, BASE_W, groundY); pctx.clip();
+  pctx.translate(cx, groundY + 8 + headDrop * (headH + 24));
+  pctx.rotate(sway);
+  pctx.drawImage(head, -headW / 2, -headH + bob, headW, headH);
+  pctx.restore();
 
   // hands IN FRONT of the taskbar, resting on its bottom edge, fingers reaching up over the top
-  const bottom = cv.height / k;
+  const bottom = petCv.height / k;
   const dropPx = handDrop * 70;
   drawHand(handL, cx - HAND_OFF, bottom + dropPx);
   drawHand(handR, cx + HAND_OFF, bottom + dropPx);
 }
 
+function draw(t) {
+  const dt = Math.min(0.1, (t - lastT) / 1000); lastT = t;
+  updateHeat(dt, t);
+  drawPet(t, dt);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawSmoke();
+  ctx.drawImage(petCv, 0, 0, petCv.width, petCv.height, petLeft, 0, petCv.width / dpr, petCv.height / dpr);
+  drawBubble(t);
+}
 function loop(t) { if (ready) draw(t); requestAnimationFrame(loop); }
 
-// Click-through everywhere except over Jack's actual pixels
-function alphaAt(x, y) {
-  const dpr = window.devicePixelRatio || 1;
-  const px = Math.floor(x * dpr), py = Math.floor(y * dpr);
-  if (px < 0 || py < 0 || px >= cv.width || py >= cv.height) return 0;
-  return ctx.getImageData(px, py, 1, 1).data[3];
+// ---------- mouse: click-through except over the character's own pixels ----------
+function overPet(x, y) {
+  const px = Math.floor((x - petLeft) * dpr), py = Math.floor(y * dpr);
+  if (px < 0 || py < 0 || px >= petCv.width || py >= petCv.height) return false;
+  return pctx.getImageData(px, py, 1, 1).data[3] > 20;
 }
+function setIgnore(v) { if (v !== ignoring) { ignoring = v; window.jack.ignoreMouse(v); } }
 window.addEventListener('mousemove', (e) => {
-  if (!ready) return;
-  const over = alphaAt(e.clientX, e.clientY) > 20;
-  if (over === ignoring) { ignoring = !over; window.jack.ignoreMouse(ignoring); }
+  if (!ready || dragging) return;
+  const over = overPet(e.clientX, e.clientY);
+  setIgnore(!over);
+  document.body.style.cursor = over ? 'grab' : 'default';
 });
-window.addEventListener('mousedown', (e) => {
-  if (e.button === 2) window.jack.petMenu();
-  else bounceT = performance.now();
+cv.addEventListener('pointerdown', (e) => {
+  if (e.button === 2) { window.jack.petMenu(); return; }
+  if (e.button !== 0 || !ready || !overPet(e.clientX, e.clientY)) return;
+  dragging = true; moved = false; downX = e.clientX; grabDX = e.clientX - petLeft;
+  cv.setPointerCapture(e.pointerId);
+  document.body.style.cursor = 'grabbing';
 });
+cv.addEventListener('pointermove', (e) => {
+  if (!dragging) return;
+  if (Math.abs(e.clientX - downX) > 4) moved = true;
+  const range = Math.max(1, W - pw);
+  position = clamp01((e.clientX - grabDX) / range);
+});
+function endDrag() {
+  if (!dragging) return;
+  dragging = false; document.body.style.cursor = 'grab';
+  if (!moved) bounceT = performance.now(); else window.jack.setSettings({ position });
+}
+cv.addEventListener('pointerup', endDrag);
+cv.addEventListener('pointercancel', endDrag);
 window.addEventListener('contextmenu', (e) => e.preventDefault());
 
+// ---------- characters / settings ----------
 let chars = null;
 async function applyCharacter(st) {
   if (!chars) return;
@@ -87,7 +218,12 @@ async function applyCharacter(st) {
   const img = await load('../assets/characters/' + sk.head);
   head = img; headW = sk.width || 170;
 }
+function applySettings(st) {
+  if (st.scale && st.scale !== scale) { scale = st.scale; resize(); }
+  if (!dragging && typeof st.position === 'number') position = st.position;
+  return applyCharacter(st);
+}
 Promise.all([load('../assets/hand-left.png'), load('../assets/hand-right.png'), window.jack.getCharacters(), window.jack.getSettings()])
-  .then(async ([l, r, c, st]) => { handL = l; handR = r; chars = c; await applyCharacter(st); resize(); ready = true; });
-window.jack.onSettings((st) => applyCharacter(st));
+  .then(async ([l, r, c, st]) => { handL = l; handR = r; chars = c; scale = st.scale || scale; position = st.position; await applyCharacter(st); resize(); ready = true; });
+window.jack.onSettings(applySettings);
 requestAnimationFrame(loop);

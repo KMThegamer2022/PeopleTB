@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('jack', {
   onSettings: (cb) => ipcRenderer.on('settings', (_e, s) => cb(s)),
   onScale: (cb) => ipcRenderer.on('scale', (_e, s) => cb(s)),
   onFullscreen: (cb) => ipcRenderer.on('fullscreen', (_e, v) => cb(v)),
+  getOverheat: () => ipcRenderer.invoke('get-overheat'),
+  overheatFire: () => ipcRenderer.send('overheat-fire'),
   quit: () => ipcRenderer.send('quit'),
   ignoreMouse: (v) => ipcRenderer.send('pet-ignore', v),
   petMenu: () => ipcRenderer.send('pet-menu')

@@ -20,7 +20,8 @@
     "files": [
       "src/**/*",
       "assets/**/*",
-      "package.json"
+      "package.json",
+      "overheat.config.json"
     ],
     "win": {
       "target": "nsis",

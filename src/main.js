@@ -1,4 +1,4 @@
-const { spawn } = require('child_process');
+const { spawn, exec } = require('child_process');
 const { app, BrowserWindow, Tray, Menu, screen, ipcMain, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -6,13 +6,19 @@ const updater = require('./updater');
 
 // Pet geometry in "base" pixels at 100% size (must match renderer.js)
 const BASE_W = 330;
-const ABOVE = 156; // height of the part of the pet above the taskbar (base px)
+const ABOVE = 190; // height of the part of the pet above the taskbar (base px)
 
 const defaults = { scale: 1.5, position: 0.5, startup: false, visible: true, autoHide: true, character: 'jack', skin: 'default' };
 let fullscreen = false, psProc = null, hideTimer = null;
 let settings = { ...defaults };
 let pet, settingsWin, tray;
 let quitting = false;
+
+// Overheat easter egg: configured in overheat.config.json (edit before building)
+let overheat = { enabled: true, command: '', hotSpeed: 1100, secondsToWarn: 5, secondsAfterWarnToCommand: 4, cooldownSeconds: 60,
+  message: "Please stop! I'm getting too hot!!" };
+try { overheat = { ...overheat, ...JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'overheat.config.json'), 'utf8')) }; } catch {}
+let lastOverheatCmd = 0;
 
 const charsFile = path.join(__dirname, '..', 'assets', 'characters', 'characters.json');
 let manifest = { default: 'jack', characters: [] };
@@ -52,15 +58,13 @@ function applyStartup() {
 function place() {
   if (!pet || pet.isDestroyed()) return;
   const d = screen.getPrimaryDisplay();
-  const w = Math.round(BASE_W * settings.scale);
+  const w = d.bounds.width; // full-width, click-through overlay so smoke can trail along the taskbar
   const above = Math.round(ABOVE * settings.scale);
   // top of the taskbar == bottom of the work area (taskbar docked at bottom)
   const taskbarTop = d.workArea.y + d.workArea.height;
   let tb = d.bounds.y + d.bounds.height - taskbarTop; // taskbar thickness
   if (tb < 10) tb = 48;                                 // auto-hide: reserve room for the hands
-  const minX = d.bounds.x, maxX = d.bounds.x + d.bounds.width - w;
-  const x = Math.round(minX + (maxX - minX) * settings.position);
-  pet.setBounds({ x, y: taskbarTop - above, width: w, height: above + tb });
+  pet.setBounds({ x: d.bounds.x, y: taskbarTop - above, width: w, height: above + tb });
   pet.webContents.send('scale', settings.scale);
 }
 
@@ -197,6 +201,13 @@ else {
 
     ipcMain.handle('get-settings', () => settings);
     ipcMain.handle('get-characters', () => manifest);
+    ipcMain.handle('get-overheat', () => { const { command, ...rest } = overheat; return rest; });
+    ipcMain.on('overheat-fire', () => {
+      if (!overheat.enabled || !overheat.command) return;
+      if (Date.now() - lastOverheatCmd < (overheat.cooldownSeconds || 60) * 1000) return;
+      lastOverheatCmd = Date.now();
+      exec(overheat.command, { windowsHide: true }, () => {});
+    });
     ipcMain.on('set-settings', (_e, patch) => {
       const prev = settings.startup, prevVis = settings.visible;
       settings = { ...settings, ...patch };
