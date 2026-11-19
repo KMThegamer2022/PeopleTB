@@ -2,19 +2,42 @@ const { spawn } = require('child_process');
 const { app, BrowserWindow, Tray, Menu, screen, ipcMain, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const updater = require('./updater');
 
 // Pet geometry in "base" pixels at 100% size (must match renderer.js)
 const BASE_W = 330;
 const ABOVE = 156; // height of the part of the pet above the taskbar (base px)
 
-const defaults = { scale: 1.5, position: 0.5, startup: false, visible: true, autoHide: true };
+const defaults = { scale: 1.5, position: 0.5, startup: false, visible: true, autoHide: true, character: 'jack', skin: 'default' };
 let fullscreen = false, psProc = null, hideTimer = null;
 let settings = { ...defaults };
 let pet, settingsWin, tray;
 let quitting = false;
 
+const charsFile = path.join(__dirname, '..', 'assets', 'characters', 'characters.json');
+let manifest = { default: 'jack', characters: [] };
+try { manifest = JSON.parse(fs.readFileSync(charsFile, 'utf8')); } catch {}
+function currentSkin() {
+  const c = manifest.characters.find((x) => x.id === settings.character) || manifest.characters[0];
+  if (!c) return null;
+  const sk = c.skins.find((x) => x.id === settings.skin) || c.skins[0];
+  return { character: c, skin: sk };
+}
+function setCharacter(id, skin) {
+  const c = manifest.characters.find((x) => x.id === id); if (!c) return;
+  settings.character = id; settings.skin = (c.skins.find((x) => x.id === skin) || c.skins[0]).id;
+  save(); broadcast();
+}
+
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
 function load() {
+  // carry settings over from the old "Taskbar Jack" install
+  if (!fs.existsSync(settingsFile())) {
+    try {
+      const old = path.join(app.getPath('appData'), 'Taskbar Jack', 'settings.json');
+      if (fs.existsSync(old)) { fs.mkdirSync(app.getPath('userData'), { recursive: true }); fs.copyFileSync(old, settingsFile()); }
+    } catch {}
+  }
   try { settings = { ...defaults, ...JSON.parse(fs.readFileSync(settingsFile(), 'utf8')) }; } catch {}
 }
 function save() {
@@ -80,11 +103,11 @@ function setFullscreen(fs) {
   if (!pet || pet.isDestroyed() || !settings.visible || !settings.autoHide) return;
   clearTimeout(hideTimer);
   if (fs) {
-    pet.webContents.send('fullscreen', true);           // hands drop, Jack slides down
+    pet.webContents.send('fullscreen', true);           // hands drop, the character slides down
     hideTimer = setTimeout(() => { if (fullscreen) pet.hide(); }, 1100);
   } else {
     place(); pet.showInactive();
-    pet.webContents.send('fullscreen', false);          // Jack slides up, hands pop up
+    pet.webContents.send('fullscreen', false);          // the character slides up, hands pop up
   }
 }
 
@@ -97,8 +120,8 @@ function setVisible(v) {
 function openSettings() {
   if (settingsWin && !settingsWin.isDestroyed()) { settingsWin.show(); settingsWin.focus(); return; }
   settingsWin = new BrowserWindow({
-    width: 380, height: 470, resizable: false, maximizable: false, minimizable: false,
-    title: 'Taskbar Jack Settings', autoHideMenuBar: true, backgroundColor: '#12151c',
+    width: 380, height: 520, resizable: false, maximizable: false, minimizable: false,
+    title: 'PeopleTB Settings', autoHideMenuBar: true, backgroundColor: '#12151c',
     icon: path.join(__dirname, '..', 'assets', 'icon.png'),
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true }
   });
@@ -106,14 +129,28 @@ function openSettings() {
   settingsWin.loadFile(path.join(__dirname, 'settings.html'));
 }
 
+function characterMenu() {
+  return manifest.characters.map((c) => {
+    if (c.skins.length === 1) {
+      return { label: c.name, type: 'radio', checked: settings.character === c.id, click: () => setCharacter(c.id, c.skins[0].id) };
+    }
+    return { label: c.name, submenu: c.skins.map((k) => ({
+      label: k.name, type: 'radio', checked: settings.character === c.id && settings.skin === k.id, click: () => setCharacter(c.id, k.id)
+    })) };
+  });
+}
+
 function menuTemplate() {
   return [
+    { label: 'Character', submenu: characterMenu() },
+    { type: 'separator' },
     { label: 'Settings…', click: openSettings },
-    { label: 'Show Jack', type: 'checkbox', checked: settings.visible, click: (i) => setVisible(i.checked) },
+    { label: 'Show on taskbar', type: 'checkbox', checked: settings.visible, click: (i) => setVisible(i.checked) },
     { label: 'Start with Windows', type: 'checkbox', checked: settings.startup,
       click: (i) => { settings.startup = i.checked; save(); applyStartup(); broadcast(); } },
     { label: 'Hide in fullscreen apps', type: 'checkbox', checked: settings.autoHide,
       click: (i) => { settings.autoHide = i.checked; save(); broadcast(); } },
+    { label: 'Check for updates…', click: () => updater.check({ manual: true, onQuit: quit }) },
     { type: 'separator' },
     { label: 'Quit', click: quit }
   ];
@@ -124,6 +161,7 @@ function buildTray() {
 function quit() { quitting = true; try { psProc && psProc.kill(); } catch {} app.quit(); }
 function broadcast() {
   if (settingsWin && !settingsWin.isDestroyed()) settingsWin.webContents.send('settings', settings);
+  if (pet && !pet.isDestroyed()) pet.webContents.send('settings', settings);
   if (tray) buildTray();
 }
 
@@ -135,15 +173,16 @@ else {
     applyStartup();
     createPet();
     tray = new Tray(nativeImage.createFromPath(path.join(__dirname, '..', 'assets', 'tray.png')));
-    tray.setToolTip('Taskbar Jack');
+    tray.setToolTip('PeopleTB');
     tray.on('click', openSettings);
     buildTray();
     startFullscreenWatcher();
+    updater.start({ onQuit: quit });
 
     screen.on('display-metrics-changed', place);
     screen.on('display-added', place);
     screen.on('display-removed', place);
-    // Keep Jack above the taskbar (Windows can re-raise the taskbar over topmost windows)
+    // Keep the pet above the taskbar (Windows can re-raise the taskbar over topmost windows)
     setInterval(() => {
       if (pet && !pet.isDestroyed() && settings.visible && !(fullscreen && settings.autoHide)) {
         pet.setAlwaysOnTop(true, 'screen-saver');
@@ -153,6 +192,7 @@ else {
     }, 3000);
 
     ipcMain.handle('get-settings', () => settings);
+    ipcMain.handle('get-characters', () => manifest);
     ipcMain.on('set-settings', (_e, patch) => {
       const prev = settings.startup, prevVis = settings.visible;
       settings = { ...settings, ...patch };

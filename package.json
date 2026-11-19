@@ -1,10 +1,10 @@
 {
-  "name": "taskbar-jack",
-  "productName": "Taskbar Jack",
-  "version": "1.1.0",
-  "description": "Taskbar Jack",
+  "name": "peopletb",
+  "productName": "PeopleTB",
+  "version": "1.2.0",
+  "description": "PeopleTB",
   "main": "src/main.js",
-  "author": "Taskbar Jack",
+  "author": "PeopleTB",
   "license": "MIT",
   "scripts": {
     "start": "electron .",
@@ -16,13 +16,17 @@
   },
   "build": {
     "appId": "com.taskbarjack.app",
-    "productName": "Taskbar Jack",
-    "files": ["src/**/*", "assets/**/*", "package.json"],
+    "productName": "PeopleTB",
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
     "win": {
       "target": "nsis",
       "icon": "assets/icon.ico",
-      "legalTrademarks": "Taskbar Jack",
-      "artifactName": "Taskbar-Jack-Setup-${version}.${ext}"
+      "legalTrademarks": "PeopleTB",
+      "artifactName": "PeopleTB-Setup-${version}.${ext}"
     },
     "nsis": {
       "oneClick": false,
@@ -31,7 +35,7 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "runAfterFinish": true,
-      "shortcutName": "Taskbar Jack"
+      "shortcutName": "PeopleTB"
     }
   }
 }

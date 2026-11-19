@@ -19,7 +19,8 @@ function resize() {
 window.addEventListener('resize', resize);
 window.jack.onScale(() => setTimeout(resize, 50));
 
-const HEAD_W = 170, HAND_K = 0.34, HAND_OFF = 121;
+let headW = 170;
+const HAND_K = 0.34, HAND_OFF = 121;
 function drawHand(img, cx, bottom) {
   const w = img.width * HAND_K, h = img.height * HAND_K;
   ctx.drawImage(img, cx - w / 2, bottom - h, w, h);
@@ -33,7 +34,7 @@ function draw(t) {
   ctx.clearRect(0, 0, cv.width, cv.height);
   ctx.setTransform(k, 0, 0, k, 0, 0);
   const groundY = ABOVE;                      // taskbar top edge
-  const headH = HEAD_W * head.height / head.width;
+  const headH = headW * head.height / head.width;
   const cx = BASE_W / 2;
   const sway = Math.sin(t / 900) * 1.2 * Math.PI / 180;
   let hop = 0;
@@ -48,7 +49,7 @@ function draw(t) {
   ctx.beginPath(); ctx.rect(0, 0, BASE_W, groundY); ctx.clip();
   ctx.translate(cx, groundY + 8 + headDrop * (headH + 24));
   ctx.rotate(sway);
-  ctx.drawImage(head, -HEAD_W / 2, -headH + bob, HEAD_W, headH);
+  ctx.drawImage(head, -headW / 2, -headH + bob, headW, headH);
   ctx.restore();
 
   // hands IN FRONT of the taskbar, resting on its bottom edge, fingers reaching up over the top
@@ -78,7 +79,15 @@ window.addEventListener('mousedown', (e) => {
 });
 window.addEventListener('contextmenu', (e) => e.preventDefault());
 
-Promise.all([load('../assets/head.png'), load('../assets/hand-left.png'), load('../assets/hand-right.png')]).then(([h, l, r]) => {
-  head = h; handL = l; handR = r; resize(); ready = true;
-});
+let chars = null;
+async function applyCharacter(st) {
+  if (!chars) return;
+  const c = chars.characters.find((x) => x.id === st.character) || chars.characters[0];
+  const sk = c.skins.find((x) => x.id === st.skin) || c.skins[0];
+  const img = await load('../assets/characters/' + sk.head);
+  head = img; headW = sk.width || 170;
+}
+Promise.all([load('../assets/hand-left.png'), load('../assets/hand-right.png'), window.jack.getCharacters(), window.jack.getSettings()])
+  .then(async ([l, r, c, st]) => { handL = l; handR = r; chars = c; await applyCharacter(st); resize(); ready = true; });
+window.jack.onSettings((st) => applyCharacter(st));
 requestAnimationFrame(loop);

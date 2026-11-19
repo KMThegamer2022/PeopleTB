@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset="utf-8"><title>Taskbar Jack Settings</title>
+<!doctype html><html><head><meta charset="utf-8"><title>PeopleTB Settings</title>
 <style>
 *{box-sizing:border-box}
 body{margin:0;padding:22px;background:#12151c;color:#e8ecf4;font:14px "Segoe UI",system-ui,sans-serif;user-select:none}
@@ -11,23 +11,29 @@ input[type=checkbox]{width:18px;height:18px;accent-color:#3b82f6}
 .btns{display:flex;gap:10px;margin-top:26px}
 button{flex:1;padding:10px;border-radius:8px;border:1px solid #2a3142;background:#1c2130;color:#e8ecf4;font:inherit;cursor:pointer}
 button:hover{background:#252c40}button.danger{background:#5b1f27;border-color:#7d2a35}button.danger:hover{background:#7d2a35}
+select{width:100%;padding:8px;border-radius:8px;border:1px solid #2a3142;background:#1c2130;color:#e8ecf4;font:inherit}
 </style></head><body>
-<h1>Taskbar Jack</h1><p class="sub">Jack clings onto your taskbar.</p>
+<h1>PeopleTB</h1><p class="sub">Your friends cling onto your taskbar. Right-click one to switch.</p>
+<div class="row"><div class="lab"><span>Character</span></div><select id="char"></select></div>
 <div class="row"><div class="lab"><span>Size</span><span class="val" id="sv"></span></div>
 <input id="scale" type="range" min="40" max="250" step="5"></div>
 <div class="row"><div class="lab"><span>Position along taskbar</span><span class="val" id="pv"></span></div>
 <input id="pos" type="range" min="0" max="100" step="1"></div>
-<div class="row"><label class="chk"><input id="vis" type="checkbox"> Show Jack</label></div>
+<div class="row"><label class="chk"><input id="vis" type="checkbox"> Show on taskbar</label></div>
 <div class="row"><label class="chk"><input id="startup" type="checkbox"> Start with Windows</label></div>
 <div class="row"><label class="chk"><input id="auto" type="checkbox"> Tuck away when an app goes fullscreen</label></div>
-<div class="btns"><button id="close">Close</button><button class="danger" id="quit">Quit Jack</button></div>
+<div class="btns"><button id="close">Close</button><button class="danger" id="quit">Quit</button></div>
 <script>
 const $=id=>document.getElementById(id);
-function show(s){
+var show=function(s){
   $('scale').value=Math.round(s.scale*100);$('sv').textContent=Math.round(s.scale*100)+'%';
   $('pos').value=Math.round(s.position*100);$('pv').textContent=Math.round(s.position*100)+'%';
   $('startup').checked=s.startup;$('auto').checked=s.autoHide;$('vis').checked=s.visible;
-}
+};
+let cs=null;function fill(){if(!cs)return;$('char').innerHTML='';cs.characters.forEach(c=>c.skins.forEach(k=>{const o=document.createElement('option');o.value=c.id+'/'+k.id;o.textContent=c.skins.length>1?c.name+' – '+k.name:c.name;$('char').appendChild(o)}))}
+let last=null;const _show=show;show=function(s){last=s;_show(s);if(cs)$('char').value=s.character+'/'+s.skin};
+jack.getCharacters().then(c=>{cs=c;fill();if(last)$('char').value=last.character+'/'+last.skin});
+$('char').onchange=e=>{const [c,k]=e.target.value.split('/');jack.setSettings({character:c,skin:k})};
 jack.getSettings().then(show);jack.onSettings(show);
 $('scale').oninput=e=>{$('sv').textContent=e.target.value+'%';jack.setSettings({scale:e.target.value/100})};
 $('pos').oninput=e=>{$('pv').textContent=e.target.value+'%';jack.setSettings({position:e.target.value/100})};

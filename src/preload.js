@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('jack', {
   getSettings: () => ipcRenderer.invoke('get-settings'),
+  getCharacters: () => ipcRenderer.invoke('get-characters'),
   setSettings: (p) => ipcRenderer.send('set-settings', p),
   onSettings: (cb) => ipcRenderer.on('settings', (_e, s) => cb(s)),
   onScale: (cb) => ipcRenderer.on('scale', (_e, s) => cb(s)),
