@@ -2,7 +2,7 @@
   "name": "taskbar-jack",
   "productName": "Taskbar Jack",
   "version": "1.0.0",
-  "description": "A little desktop pet that clings onto your Windows taskbar.",
+  "description": "Taskbar Jack",
   "main": "src/main.js",
   "author": "Taskbar Jack",
   "license": "MIT",
@@ -11,7 +11,7 @@
     "dist": "electron-builder --win nsis --x64 --publish never"
   },
   "devDependencies": {
-    "electron": "^33.2.0",
+    "electron": "22.3.27",
     "electron-builder": "^25.1.8"
   },
   "build": {
@@ -21,6 +21,7 @@
     "win": {
       "target": "nsis",
       "icon": "assets/icon.ico",
+      "legalTrademarks": "Taskbar Jack",
       "artifactName": "Taskbar-Jack-Setup-${version}.${ext}"
     },
     "nsis": {

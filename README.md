@@ -16,3 +16,7 @@ npm start          # run
 npm run dist       # build installer into dist/ (on Windows)
 ```
 Pushing to `main` builds the installer via GitHub Actions; pushing a `v*` tag publishes a Release.
+
+## Compatibility
+Built on Electron 22, the last version that supports Windows 7 / 8 / 8.1 (as well as 10 / 11).
+Windows 7 needs SP1 and Aero (desktop composition) enabled for Jack's transparent window.
