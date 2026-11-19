@@ -19,18 +19,20 @@ button:hover{background:#252c40}button.danger{background:#5b1f27;border-color:#7
 <input id="pos" type="range" min="0" max="100" step="1"></div>
 <div class="row"><label class="chk"><input id="vis" type="checkbox"> Show Jack</label></div>
 <div class="row"><label class="chk"><input id="startup" type="checkbox"> Start with Windows</label></div>
+<div class="row"><label class="chk"><input id="auto" type="checkbox"> Tuck away when an app goes fullscreen</label></div>
 <div class="btns"><button id="close">Close</button><button class="danger" id="quit">Quit Jack</button></div>
 <script>
 const $=id=>document.getElementById(id);
 function show(s){
   $('scale').value=Math.round(s.scale*100);$('sv').textContent=Math.round(s.scale*100)+'%';
   $('pos').value=Math.round(s.position*100);$('pv').textContent=Math.round(s.position*100)+'%';
-  $('startup').checked=s.startup;$('vis').checked=s.visible;
+  $('startup').checked=s.startup;$('auto').checked=s.autoHide;$('vis').checked=s.visible;
 }
 jack.getSettings().then(show);jack.onSettings(show);
 $('scale').oninput=e=>{$('sv').textContent=e.target.value+'%';jack.setSettings({scale:e.target.value/100})};
 $('pos').oninput=e=>{$('pv').textContent=e.target.value+'%';jack.setSettings({position:e.target.value/100})};
 $('startup').onchange=e=>jack.setSettings({startup:e.target.checked});
+$('auto').onchange=e=>jack.setSettings({autoHide:e.target.checked});
 $('vis').onchange=e=>jack.setSettings({visible:e.target.checked});
 $('close').onclick=()=>window.close();$('quit').onclick=()=>jack.quit();
 </script></body></html>

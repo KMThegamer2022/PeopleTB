@@ -1,3 +1,4 @@
+const { spawn } = require('child_process');
 const { app, BrowserWindow, Tray, Menu, screen, ipcMain, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -6,7 +7,8 @@ const fs = require('fs');
 const BASE_W = 330;
 const ABOVE = 156; // height of the part of the pet above the taskbar (base px)
 
-const defaults = { scale: 1.5, position: 0.5, startup: false, visible: true };
+const defaults = { scale: 1.5, position: 0.5, startup: false, visible: true, autoHide: true };
+let fullscreen = false, psProc = null, hideTimer = null;
 let settings = { ...defaults };
 let pet, settingsWin, tray;
 let quitting = false;
@@ -55,6 +57,37 @@ function createPet() {
   });
 }
 
+// Windows: ask the shell whether a fullscreen app / game / presentation is running
+function startFullscreenWatcher() {
+  if (process.platform !== 'win32') return;
+  const script = "Add-Type -TypeDefinition 'using System.Runtime.InteropServices; public class N { [DllImport(\"shell32.dll\")] public static extern int SHQueryUserNotificationState(out int s); }';" +
+    "while($true){ $s=0; [void][N]::SHQueryUserNotificationState([ref]$s); [Console]::Out.WriteLine($s); [Console]::Out.Flush(); Start-Sleep -Milliseconds 700 }";
+  psProc = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', script], { windowsHide: true });
+  let buf = '';
+  psProc.stdout.on('data', (d) => {
+    buf += d.toString();
+    const lines = buf.split(/\r?\n/); buf = lines.pop();
+    for (const l of lines) {
+      const n = parseInt(l.trim(), 10);
+      if (!isNaN(n)) setFullscreen(n === 2 || n === 3 || n === 4);
+    }
+  });
+  psProc.on('error', () => {});
+}
+function setFullscreen(fs) {
+  if (fs === fullscreen) return;
+  fullscreen = fs;
+  if (!pet || pet.isDestroyed() || !settings.visible || !settings.autoHide) return;
+  clearTimeout(hideTimer);
+  if (fs) {
+    pet.webContents.send('fullscreen', true);           // hands drop, Jack slides down
+    hideTimer = setTimeout(() => { if (fullscreen) pet.hide(); }, 1100);
+  } else {
+    place(); pet.showInactive();
+    pet.webContents.send('fullscreen', false);          // Jack slides up, hands pop up
+  }
+}
+
 function setVisible(v) {
   settings.visible = v; save();
   if (v) { pet.showInactive(); place(); } else pet.hide();
@@ -64,7 +97,7 @@ function setVisible(v) {
 function openSettings() {
   if (settingsWin && !settingsWin.isDestroyed()) { settingsWin.show(); settingsWin.focus(); return; }
   settingsWin = new BrowserWindow({
-    width: 380, height: 420, resizable: false, maximizable: false, minimizable: false,
+    width: 380, height: 470, resizable: false, maximizable: false, minimizable: false,
     title: 'Taskbar Jack Settings', autoHideMenuBar: true, backgroundColor: '#12151c',
     icon: path.join(__dirname, '..', 'assets', 'icon.png'),
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true }
@@ -79,6 +112,8 @@ function menuTemplate() {
     { label: 'Show Jack', type: 'checkbox', checked: settings.visible, click: (i) => setVisible(i.checked) },
     { label: 'Start with Windows', type: 'checkbox', checked: settings.startup,
       click: (i) => { settings.startup = i.checked; save(); applyStartup(); broadcast(); } },
+    { label: 'Hide in fullscreen apps', type: 'checkbox', checked: settings.autoHide,
+      click: (i) => { settings.autoHide = i.checked; save(); broadcast(); } },
     { type: 'separator' },
     { label: 'Quit', click: quit }
   ];
@@ -86,7 +121,7 @@ function menuTemplate() {
 function buildTray() {
   tray.setContextMenu(Menu.buildFromTemplate(menuTemplate()));
 }
-function quit() { quitting = true; app.quit(); }
+function quit() { quitting = true; try { psProc && psProc.kill(); } catch {} app.quit(); }
 function broadcast() {
   if (settingsWin && !settingsWin.isDestroyed()) settingsWin.webContents.send('settings', settings);
   if (tray) buildTray();
@@ -103,13 +138,14 @@ else {
     tray.setToolTip('Taskbar Jack');
     tray.on('click', openSettings);
     buildTray();
+    startFullscreenWatcher();
 
     screen.on('display-metrics-changed', place);
     screen.on('display-added', place);
     screen.on('display-removed', place);
     // Keep Jack above the taskbar (Windows can re-raise the taskbar over topmost windows)
     setInterval(() => {
-      if (pet && !pet.isDestroyed() && settings.visible) {
+      if (pet && !pet.isDestroyed() && settings.visible && !(fullscreen && settings.autoHide)) {
         pet.setAlwaysOnTop(true, 'screen-saver');
         pet.moveTop();
         place();
@@ -124,7 +160,7 @@ else {
       settings.position = Math.min(1, Math.max(0, Number(settings.position) || 0));
       save(); place();
       if (prev !== settings.startup) applyStartup();
-      if (prevVis !== settings.visible) { settings.visible ? pet.showInactive() : pet.hide(); }
+      if (prevVis !== settings.visible && !(fullscreen && settings.autoHide)) { settings.visible ? pet.showInactive() : pet.hide(); }
       broadcast();
     });
     ipcMain.on('quit', quit);

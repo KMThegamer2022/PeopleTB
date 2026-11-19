@@ -5,7 +5,10 @@ const ctx = cv.getContext('2d');
 const load = (src) => new Promise((r) => { const i = new Image(); i.onload = () => r(i); i.src = src; });
 
 let head, handL, handR, ready = false, bounce = 0, bounceT = -1, ignoring = true;
-let k = 1; // device px per base unit
+let k = 1, hidden = 0, hiddenTarget = 0, lastT = 0; // hidden: 0 = clinging, 1 = tucked away
+window.jack.onFullscreen((fs) => { hiddenTarget = fs ? 1 : 0; });
+const ease = (x) => x * x * (3 - 2 * x);
+const clamp01 = (x) => Math.max(0, Math.min(1, x)); // device px per base unit
 
 function resize() {
   const dpr = window.devicePixelRatio || 1;
@@ -22,6 +25,10 @@ function drawHand(img, cx, bottom) {
   ctx.drawImage(img, cx - w / 2, bottom - h, w, h);
 }
 function draw(t) {
+  const dt = Math.min(0.1, (t - lastT) / 1000); lastT = t;
+  hidden += Math.sign(hiddenTarget - hidden) * Math.min(Math.abs(hiddenTarget - hidden), dt / 0.9);
+  const handDrop = ease(clamp01(hidden / 0.45));          // hands drop away first
+  const headDrop = ease(clamp01((hidden - 0.3) / 0.7));   // then Jack slides down behind the taskbar
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, cv.width, cv.height);
   ctx.setTransform(k, 0, 0, k, 0, 0);
@@ -39,15 +46,16 @@ function draw(t) {
   // Jack is BEHIND the taskbar: body clipped at its top edge
   ctx.save();
   ctx.beginPath(); ctx.rect(0, 0, BASE_W, groundY); ctx.clip();
-  ctx.translate(cx, groundY + 8);
+  ctx.translate(cx, groundY + 8 + headDrop * (headH + 24));
   ctx.rotate(sway);
   ctx.drawImage(head, -HEAD_W / 2, -headH + bob, HEAD_W, headH);
   ctx.restore();
 
   // hands IN FRONT of the taskbar, resting on its bottom edge, fingers reaching up over the top
   const bottom = cv.height / k;
-  drawHand(handL, cx - HAND_OFF, bottom);
-  drawHand(handR, cx + HAND_OFF, bottom);
+  const dropPx = handDrop * 70;
+  drawHand(handL, cx - HAND_OFF, bottom + dropPx);
+  drawHand(handR, cx + HAND_OFF, bottom + dropPx);
 }
 
 function loop(t) { if (ready) draw(t); requestAnimationFrame(loop); }
