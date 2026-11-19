@@ -3,9 +3,8 @@ const path = require('path');
 const fs = require('fs');
 
 // Pet geometry in "base" pixels at 100% size (must match renderer.js)
-const BASE_W = 270;
-const BASE_H = 160;
-const SINK = 6; // how far the pet dips over the taskbar top edge (base px)
+const BASE_W = 330;
+const ABOVE = 156; // height of the part of the pet above the taskbar (base px)
 
 const defaults = { scale: 1, position: 0.5, startup: false, visible: true };
 let settings = { ...defaults };
@@ -29,20 +28,20 @@ function place() {
   if (!pet || pet.isDestroyed()) return;
   const d = screen.getPrimaryDisplay();
   const w = Math.round(BASE_W * settings.scale);
-  const h = Math.round(BASE_H * settings.scale);
-  const sink = Math.round(SINK * settings.scale);
+  const above = Math.round(ABOVE * settings.scale);
   // top of the taskbar == bottom of the work area (taskbar docked at bottom)
   const taskbarTop = d.workArea.y + d.workArea.height;
+  let tb = d.bounds.y + d.bounds.height - taskbarTop; // taskbar thickness
+  if (tb < 10) tb = 48;                                 // auto-hide: reserve room for the hands
   const minX = d.bounds.x, maxX = d.bounds.x + d.bounds.width - w;
   const x = Math.round(minX + (maxX - minX) * settings.position);
-  const y = taskbarTop - h + sink;
-  pet.setBounds({ x, y, width: w, height: h });
+  pet.setBounds({ x, y: taskbarTop - above, width: w, height: above + tb });
   pet.webContents.send('scale', settings.scale);
 }
 
 function createPet() {
   pet = new BrowserWindow({
-    width: BASE_W, height: BASE_H,
+    width: BASE_W, height: ABOVE + 48,
     frame: false, transparent: true, resizable: false, movable: false,
     focusable: false, skipTaskbar: true, hasShadow: false, show: false,
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true }
