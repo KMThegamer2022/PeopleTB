@@ -18,7 +18,11 @@ let scale = 1.5, position = 0.5, headW = 170;
 let dpr = 1, W = 0, H = 0, petLeft = 0, pw = 0;
 window.jack.onFullscreen((fs) => { hiddenTarget = fs ? 1 : 0; });
 window.jack.onBusy((b) => { if (b && !busy) loadingSince = performance.now(); busy = b; });
-window.jack.onSay((text) => { announceText = text; announceUntil = performance.now() + 3200; });
+window.jack.onSay((text) => {
+  const now = performance.now();
+  announceText = text; announceUntil = now + 3200;
+  suppressHeatBubbleUntil = now + 3200; // stop the "too hot" bubble re-claiming its spot while shaking continues
+});
 function jobStart() { if (loadingJobs++ === 0) loadingSince = performance.now(); }
 function jobEnd() { loadingJobs = Math.max(0, loadingJobs - 1); }
 
@@ -37,7 +41,7 @@ let cfg = { enabled: true, hotSpeed: 1100, secondsToWarn: 5, secondsAfterWarnToB
 window.jack.getOverheat().then((c) => { cfg = { ...cfg, ...c }; });
 let dragging = false, grabDX = 0, downX = 0, moved = false;
 let speed = 0, prevLeft = null, heat = 0, overTime = 0, lastFireAt = -Infinity, bubbleUntil = 0;
-let announceText = '', announceUntil = 0;
+let announceText = '', announceUntil = 0, suppressHeatBubbleUntil = 0;
 const particles = [];
 
 function updateHeat(dt, now) {
@@ -54,7 +58,7 @@ function updateHeat(dt, now) {
   } else {
     heat = Math.max(0, heat - dt * 0.12);                         // slowly cools back to normal (~10 s)
   }
-  if (heat >= 1) bubbleUntil = now + 3500;
+  if (heat >= 1 && now >= suppressHeatBubbleUntil) bubbleUntil = now + 3500;
   if (hot && heat >= 1) {
     overTime += dt;
     // repeatable: fires again as soon as cooldownSeconds have passed, without needing to fully cool down first
@@ -98,8 +102,8 @@ function drawSmoke() {
 
 function drawBubble(now) {
   let text, stroke, tcolor, shaky;
-  if (now <= bubbleUntil) { text = cfg.message; stroke = '#d33'; tcolor = '#c00'; shaky = true; }
-  else if (now <= announceUntil) { text = announceText; stroke = '#2563eb'; tcolor = '#1d4ed8'; shaky = false; }
+  if (now <= announceUntil) { text = announceText; stroke = '#2563eb'; tcolor = '#1d4ed8'; shaky = false; }
+  else if (now <= bubbleUntil) { text = cfg.message; stroke = '#d33'; tcolor = '#c00'; shaky = true; }
   else return;
   const shake = shaky ? Math.sin(now / 35) * 1.5 : 0;
   ctx.save();

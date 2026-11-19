@@ -26,19 +26,29 @@ let quitting = false;
 let overheat = { enabled: true, hotSpeed: 1100, secondsToWarn: 5, secondsAfterWarnToBsod: 4, cooldownSeconds: 30,
   message: "Please stop! I'm getting too hot!!", afterMessage: 'Just Kidding, lol!' };
 try { overheat = { ...overheat, ...JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'overheat.config.json'), 'utf8')) }; } catch {}
-let lastBsod = 0, bsodWin = null;
+let lastBsod = 0, bsodWin = null, bsodRaise = null;
 function showBsod() {
   if (bsodWin && !bsodWin.isDestroyed()) return;
   const d = screen.getPrimaryDisplay();
   bsodWin = new BrowserWindow({
     ...d.bounds, frame: false, resizable: false, movable: false, skipTaskbar: true,
-    alwaysOnTop: true, backgroundColor: '#0078d7', show: false, kiosk: true, fullscreenable: true,
+    alwaysOnTop: true, backgroundColor: '#0078d7', show: false,
     webPreferences: { preload: path.join(__dirname, 'bsod-preload.js'), contextIsolation: true }
   });
   bsodWin.setAlwaysOnTop(true, 'screen-saver');
   bsodWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   bsodWin.loadFile(path.join(__dirname, 'bsod.html'));
-  bsodWin.once('ready-to-show', () => { bsodWin.show(); bsodWin.setFullScreen(true); });
+  bsodWin.once('ready-to-show', () => { bsodWin.setBounds(d.bounds); bsodWin.show(); bsodWin.focus(); });
+  // The real Windows taskbar is itself an always-on-top window and can raise itself above ours (the
+  // same issue the taskbar character had) - OS-level fullscreen isn't reliable on every machine, so
+  // re-raise this window constantly instead, the same fix that worked for the character.
+  clearInterval(bsodRaise);
+  bsodRaise = setInterval(() => {
+    if (!bsodWin || bsodWin.isDestroyed()) { clearInterval(bsodRaise); bsodRaise = null; return; }
+    bsodWin.setAlwaysOnTop(false);
+    bsodWin.setAlwaysOnTop(true, 'screen-saver');
+    bsodWin.moveTop();
+  }, 150);
 }
 
 const charsFile = path.join(__dirname, '..', 'assets', 'characters', 'characters.json');
@@ -227,6 +237,7 @@ else {
       showBsod();
     });
     ipcMain.on('bsod-done', () => {
+      clearInterval(bsodRaise); bsodRaise = null;
       if (bsodWin && !bsodWin.isDestroyed()) bsodWin.close();
       bsodWin = null;
       setTimeout(() => { if (pet && !pet.isDestroyed()) pet.webContents.send('say', overheat.afterMessage); }, 350);
