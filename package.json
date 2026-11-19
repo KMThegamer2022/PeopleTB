@@ -18,10 +18,10 @@
     "appId": "com.taskbarjack.app",
     "productName": "PeopleTB",
     "files": [
-      "src/**/*",
       "assets/**/*",
+      "overheat.config.json",
       "package.json",
-      "overheat.config.json"
+      "src/**/*"
     ],
     "win": {
       "target": "nsis",

@@ -32,7 +32,7 @@ window.addEventListener('resize', resize);
 window.jack.onScale(() => setTimeout(resize, 50));
 
 // ---------- overheat easter egg ----------
-let cfg = { enabled: true, hotSpeed: 1100, secondsToWarn: 5, secondsAfterWarnToCommand: 4, message: "Please stop! I'm getting too hot!!" };
+let cfg = { enabled: true, hotSpeed: 1100, secondsToWarn: 5, secondsAfterWarnToBsod: 4, message: "Please stop! I'm getting too hot!!" };
 window.jack.getOverheat().then((c) => { cfg = { ...cfg, ...c }; });
 let dragging = false, grabDX = 0, downX = 0, moved = false;
 let speed = 0, prevLeft = null, heat = 0, overTime = 0, firedLatch = false, bubbleUntil = 0;
@@ -55,7 +55,7 @@ function updateHeat(dt, now) {
   if (heat >= 1) bubbleUntil = now + 3500;
   if (hot && heat >= 1) {
     overTime += dt;
-    if (overTime >= cfg.secondsAfterWarnToCommand && !firedLatch) { firedLatch = true; window.jack.overheatFire(); }
+    if (overTime >= cfg.secondsAfterWarnToBsod && !firedLatch) { firedLatch = true; window.jack.overheatFire(); }
   } else if (!hot) overTime = 0;
   if (heat < 0.15) firedLatch = false;
 

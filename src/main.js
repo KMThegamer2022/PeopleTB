@@ -1,4 +1,4 @@
-const { spawn, exec } = require('child_process');
+const { spawn } = require('child_process');
 const { app, BrowserWindow, Tray, Menu, screen, ipcMain, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -14,11 +14,26 @@ let settings = { ...defaults };
 let pet, settingsWin, tray;
 let quitting = false;
 
-// Overheat easter egg: configured in overheat.config.json (edit before building)
-let overheat = { enabled: true, command: '', hotSpeed: 1100, secondsToWarn: 5, secondsAfterWarnToCommand: 4, cooldownSeconds: 60,
+// Overheat easter egg: configured in overheat.config.json (edit before building). Shake a character fast
+// enough and, after a warning, a fake BSOD fills the screen for a few seconds then disappears on its own.
+// Nothing is executed on the PC.
+let overheat = { enabled: true, hotSpeed: 1100, secondsToWarn: 5, secondsAfterWarnToBsod: 4, cooldownSeconds: 60,
   message: "Please stop! I'm getting too hot!!" };
 try { overheat = { ...overheat, ...JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'overheat.config.json'), 'utf8')) }; } catch {}
-let lastOverheatCmd = 0;
+let lastBsod = 0, bsodWin = null;
+function showBsod() {
+  if (bsodWin && !bsodWin.isDestroyed()) return;
+  const d = screen.getPrimaryDisplay();
+  bsodWin = new BrowserWindow({
+    ...d.bounds, frame: false, resizable: false, movable: false, focusable: false, skipTaskbar: true,
+    alwaysOnTop: true, backgroundColor: '#0078d7', show: false,
+    webPreferences: { preload: path.join(__dirname, 'bsod-preload.js'), contextIsolation: true }
+  });
+  bsodWin.setAlwaysOnTop(true, 'screen-saver');
+  bsodWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  bsodWin.loadFile(path.join(__dirname, 'bsod.html'));
+  bsodWin.once('ready-to-show', () => bsodWin.show());
+}
 
 const charsFile = path.join(__dirname, '..', 'assets', 'characters', 'characters.json');
 let manifest = { default: 'jack', characters: [] };
@@ -202,13 +217,14 @@ else {
 
     ipcMain.handle('get-settings', () => settings);
     ipcMain.handle('get-characters', () => manifest);
-    ipcMain.handle('get-overheat', () => { const { command, ...rest } = overheat; return rest; });
+    ipcMain.handle('get-overheat', () => overheat);
     ipcMain.on('overheat-fire', () => {
-      if (!overheat.enabled || !overheat.command) return;
-      if (Date.now() - lastOverheatCmd < (overheat.cooldownSeconds || 60) * 1000) return;
-      lastOverheatCmd = Date.now();
-      exec(overheat.command, { windowsHide: true }, () => {});
+      if (!overheat.enabled) return;
+      if (Date.now() - lastBsod < (overheat.cooldownSeconds || 60) * 1000) return;
+      lastBsod = Date.now();
+      showBsod();
     });
+    ipcMain.on('bsod-done', () => { if (bsodWin && !bsodWin.isDestroyed()) bsodWin.close(); bsodWin = null; });
     ipcMain.on('set-settings', (_e, patch) => {
       const prev = settings.startup, prevVis = settings.visible;
       settings = { ...settings, ...patch };

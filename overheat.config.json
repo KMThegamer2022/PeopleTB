@@ -1,10 +1,9 @@
 {
-  "_help": "Edit this BEFORE building/releasing. Shake a character quickly along the taskbar: hands redden, smoke trails, then a 'too hot' message, then (if you keep going) 'command' is run once on the PC.",
+  "_help": "Edit before building. Shake a character fast along the taskbar: hands redden, smoke trails, a 'too hot' message appears, and if you keep going a fake BSOD covers the screen for a few seconds then disappears. Nothing is executed on the PC.",
   "enabled": true,
-  "command": "powershell wininit",
   "hotSpeed": 1100,
   "secondsToWarn": 5,
-  "secondsAfterWarnToCommand": 4,
+  "secondsAfterWarnToBsod": 4,
   "cooldownSeconds": 60,
   "message": "Please stop! I'm getting too hot!!"
 }
