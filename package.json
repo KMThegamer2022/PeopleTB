@@ -1,0 +1,36 @@
+{
+  "name": "taskbar-jack",
+  "productName": "Taskbar Jack",
+  "version": "1.0.0",
+  "description": "A little desktop pet that clings onto your Windows taskbar.",
+  "main": "src/main.js",
+  "author": "Taskbar Jack",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.taskbarjack.app",
+    "productName": "Taskbar Jack",
+    "files": ["src/**/*", "assets/**/*", "package.json"],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico",
+      "artifactName": "Taskbar-Jack-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "shortcutName": "Taskbar Jack"
+    }
+  }
+}
