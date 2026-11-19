@@ -182,14 +182,18 @@ else {
     screen.on('display-metrics-changed', place);
     screen.on('display-added', place);
     screen.on('display-removed', place);
-    // Keep the pet above the taskbar (Windows can re-raise the taskbar over topmost windows)
+    // Keep the pet above the taskbar. The taskbar is itself a topmost window and Windows raises it
+    // whenever it is clicked, so re-raise very often, and now and then fully re-assert topmost
+    // (Electron ignores setAlwaysOnTop(true) when it already thinks the window is topmost).
+    const canRaise = () => pet && !pet.isDestroyed() && settings.visible && !(fullscreen && settings.autoHide);
+    setInterval(() => { if (canRaise()) pet.moveTop(); }, 120);
     setInterval(() => {
-      if (pet && !pet.isDestroyed() && settings.visible && !(fullscreen && settings.autoHide)) {
-        pet.setAlwaysOnTop(true, 'screen-saver');
-        pet.moveTop();
-        place();
-      }
-    }, 3000);
+      if (!canRaise()) return;
+      pet.setAlwaysOnTop(false);
+      pet.setAlwaysOnTop(true, 'screen-saver');
+      pet.moveTop();
+    }, 1500);
+    setInterval(() => { if (canRaise()) place(); }, 3000);
 
     ipcMain.handle('get-settings', () => settings);
     ipcMain.handle('get-characters', () => manifest);
