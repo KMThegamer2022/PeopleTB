@@ -1,8 +1,8 @@
 {
   "default": "jack",
   "characters": [
-    { "id": "jack",  "name": "Jack",  "skins": [ { "id": "default", "name": "Default", "head": "jack/head.png",  "width": 170 } ] },
-    { "id": "james", "name": "James", "skins": [ { "id": "default", "name": "Default", "head": "james/head.png", "width": 170 } ] },
-    { "id": "oscar", "name": "Oscar", "skins": [ { "id": "default", "name": "Default", "head": "oscar/head.png", "width": 160 } ] }
+    { "id": "jack",  "name": "Jack",  "skins": [ { "id": "default", "name": "Default", "head": "jack/head.webp",  "width": 170 } ] },
+    { "id": "james", "name": "James", "skins": [ { "id": "default", "name": "Default", "head": "james/head.webp", "width": 170 } ] },
+    { "id": "oscar", "name": "Oscar", "skins": [ { "id": "default", "name": "Default", "head": "oscar/head.webp", "width": 160 } ] }
   ]
 }

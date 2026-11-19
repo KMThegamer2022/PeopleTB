@@ -17,22 +17,22 @@ let quitting = false;
 // Overheat easter egg: configured in overheat.config.json (edit before building). Shake a character fast
 // enough and, after a warning, a fake BSOD fills the screen for a few seconds then disappears on its own.
 // Nothing is executed on the PC.
-let overheat = { enabled: true, hotSpeed: 1100, secondsToWarn: 5, secondsAfterWarnToBsod: 4, cooldownSeconds: 60,
-  message: "Please stop! I'm getting too hot!!" };
+let overheat = { enabled: true, hotSpeed: 1100, secondsToWarn: 5, secondsAfterWarnToBsod: 4, cooldownSeconds: 30,
+  message: "Please stop! I'm getting too hot!!", afterMessage: 'Just Kidding, lol!' };
 try { overheat = { ...overheat, ...JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'overheat.config.json'), 'utf8')) }; } catch {}
 let lastBsod = 0, bsodWin = null;
 function showBsod() {
   if (bsodWin && !bsodWin.isDestroyed()) return;
   const d = screen.getPrimaryDisplay();
   bsodWin = new BrowserWindow({
-    ...d.bounds, frame: false, resizable: false, movable: false, focusable: false, skipTaskbar: true,
-    alwaysOnTop: true, backgroundColor: '#0078d7', show: false,
+    ...d.bounds, frame: false, resizable: false, movable: false, skipTaskbar: true,
+    alwaysOnTop: true, backgroundColor: '#0078d7', show: false, kiosk: true, fullscreenable: true,
     webPreferences: { preload: path.join(__dirname, 'bsod-preload.js'), contextIsolation: true }
   });
   bsodWin.setAlwaysOnTop(true, 'screen-saver');
   bsodWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   bsodWin.loadFile(path.join(__dirname, 'bsod.html'));
-  bsodWin.once('ready-to-show', () => bsodWin.show());
+  bsodWin.once('ready-to-show', () => { bsodWin.show(); bsodWin.setFullScreen(true); });
 }
 
 const charsFile = path.join(__dirname, '..', 'assets', 'characters', 'characters.json');
@@ -224,7 +224,11 @@ else {
       lastBsod = Date.now();
       showBsod();
     });
-    ipcMain.on('bsod-done', () => { if (bsodWin && !bsodWin.isDestroyed()) bsodWin.close(); bsodWin = null; });
+    ipcMain.on('bsod-done', () => {
+      if (bsodWin && !bsodWin.isDestroyed()) bsodWin.close();
+      bsodWin = null;
+      setTimeout(() => { if (pet && !pet.isDestroyed()) pet.webContents.send('say', overheat.afterMessage); }, 350);
+    });
     ipcMain.on('set-settings', (_e, patch) => {
       const prev = settings.startup, prevVis = settings.visible;
       settings = { ...settings, ...patch };

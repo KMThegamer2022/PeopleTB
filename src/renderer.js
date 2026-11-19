@@ -18,6 +18,7 @@ let scale = 1.5, position = 0.5, headW = 170;
 let dpr = 1, W = 0, H = 0, petLeft = 0, pw = 0;
 window.jack.onFullscreen((fs) => { hiddenTarget = fs ? 1 : 0; });
 window.jack.onBusy((b) => { if (b && !busy) loadingSince = performance.now(); busy = b; });
+window.jack.onSay((text) => { announceText = text; announceUntil = performance.now() + 3200; });
 function jobStart() { if (loadingJobs++ === 0) loadingSince = performance.now(); }
 function jobEnd() { loadingJobs = Math.max(0, loadingJobs - 1); }
 
@@ -32,10 +33,11 @@ window.addEventListener('resize', resize);
 window.jack.onScale(() => setTimeout(resize, 50));
 
 // ---------- overheat easter egg ----------
-let cfg = { enabled: true, hotSpeed: 1100, secondsToWarn: 5, secondsAfterWarnToBsod: 4, message: "Please stop! I'm getting too hot!!" };
+let cfg = { enabled: true, hotSpeed: 1100, secondsToWarn: 5, secondsAfterWarnToBsod: 4, cooldownSeconds: 30, message: "Please stop! I'm getting too hot!!" };
 window.jack.getOverheat().then((c) => { cfg = { ...cfg, ...c }; });
 let dragging = false, grabDX = 0, downX = 0, moved = false;
-let speed = 0, prevLeft = null, heat = 0, overTime = 0, firedLatch = false, bubbleUntil = 0;
+let speed = 0, prevLeft = null, heat = 0, overTime = 0, lastFireAt = -Infinity, bubbleUntil = 0;
+let announceText = '', announceUntil = 0;
 const particles = [];
 
 function updateHeat(dt, now) {
@@ -55,9 +57,11 @@ function updateHeat(dt, now) {
   if (heat >= 1) bubbleUntil = now + 3500;
   if (hot && heat >= 1) {
     overTime += dt;
-    if (overTime >= cfg.secondsAfterWarnToBsod && !firedLatch) { firedLatch = true; window.jack.overheatFire(); }
+    // repeatable: fires again as soon as cooldownSeconds have passed, without needing to fully cool down first
+    if (overTime >= cfg.secondsAfterWarnToBsod && now - lastFireAt >= cfg.cooldownSeconds * 1000) {
+      lastFireAt = now; overTime = 0; window.jack.overheatFire();
+    }
   } else if (!hot) overTime = 0;
-  if (heat < 0.15) firedLatch = false;
 
   // smoke trail from the hands
   if (heat > 0.4 && (speed > 150 || heat > 0.8)) {
@@ -93,22 +97,24 @@ function drawSmoke() {
 }
 
 function drawBubble(now) {
-  if (now > bubbleUntil) return;
-  const text = cfg.message;
-  const shake = Math.sin(now / 35) * 1.5;
+  let text, stroke, tcolor, shaky;
+  if (now <= bubbleUntil) { text = cfg.message; stroke = '#d33'; tcolor = '#c00'; shaky = true; }
+  else if (now <= announceUntil) { text = announceText; stroke = '#2563eb'; tcolor = '#1d4ed8'; shaky = false; }
+  else return;
+  const shake = shaky ? Math.sin(now / 35) * 1.5 : 0;
   ctx.save();
   ctx.font = 'bold 15px "Segoe UI", sans-serif';
   const tw = ctx.measureText(text).width, bw = tw + 26, bh = 34;
   let bx = petLeft + pw / 2 - bw / 2 + shake;
   bx = Math.max(4, Math.min(W - bw - 4, bx));
   const by = 4;
-  ctx.fillStyle = '#fff'; ctx.strokeStyle = '#d33'; ctx.lineWidth = 2.5;
+  ctx.fillStyle = '#fff'; ctx.strokeStyle = stroke; ctx.lineWidth = 2.5;
   ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, 12); ctx.fill(); ctx.stroke();
   const tx = petLeft + pw / 2 + shake;
   ctx.beginPath(); ctx.moveTo(tx - 8, by + bh); ctx.lineTo(tx, by + bh + 10); ctx.lineTo(tx + 8, by + bh); ctx.closePath();
   ctx.fillStyle = '#fff'; ctx.fill(); ctx.stroke();
   ctx.fillStyle = '#fff'; ctx.fillRect(tx - 7, by + bh - 2, 14, 3);
-  ctx.fillStyle = '#c00'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+  ctx.fillStyle = tcolor; ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
   ctx.fillText(text, bx + bw / 2, by + bh / 2 + 1);
   ctx.restore();
 }
@@ -252,7 +258,7 @@ function applySettings(st) {
   if (!dragging && typeof st.position === 'number') position = st.position;
   return applyCharacter(st);
 }
-Promise.all([load('../assets/hand-left.png'), load('../assets/hand-right.png'), window.jack.getCharacters(), window.jack.getSettings()])
+Promise.all([load('../assets/hand-left.webp'), load('../assets/hand-right.webp'), window.jack.getCharacters(), window.jack.getSettings()])
   .then(async ([l, r, c, st]) => { handL = l; handR = r; chars = c; scale = st.scale || scale; position = st.position; await applyCharacter(st); resize(); ready = true; jobEnd(); });
 window.jack.onSettings(applySettings);
 resize();
