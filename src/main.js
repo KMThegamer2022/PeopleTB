@@ -92,11 +92,13 @@ function createPet() {
   });
   pet.setAlwaysOnTop(true, 'screen-saver');
   pet.setIgnoreMouseEvents(true, { forward: true });
-  pet.loadFile(path.join(__dirname, 'pet.html'));
-  pet.webContents.once('did-finish-load', () => {
+  // 'dom-ready' (not 'did-finish-load') so the window appears as soon as the page itself is parsed,
+  // without waiting on the character art to finish loading - the in-page spinner covers that gap.
+  pet.webContents.once('dom-ready', () => {
     place();
     if (settings.visible) pet.showInactive();
   });
+  pet.loadFile(path.join(__dirname, 'pet.html'));
 }
 
 // Windows: ask the shell whether a fullscreen app / game / presentation is running
@@ -191,30 +193,10 @@ else {
   app.whenReady().then(() => {
     load();
     applyStartup();
-    createPet();
-    tray = new Tray(nativeImage.createFromPath(path.join(__dirname, '..', 'assets', 'tray.png')));
-    tray.setToolTip('PeopleTB');
-    tray.on('click', openSettings);
-    buildTray();
-    startFullscreenWatcher();
-    updater.start({ onQuit: quit, onBusy: busy });
 
-    screen.on('display-metrics-changed', place);
-    screen.on('display-added', place);
-    screen.on('display-removed', place);
-    // Keep the pet above the taskbar. The taskbar is itself a topmost window and Windows raises it
-    // whenever it is clicked, so re-raise very often, and now and then fully re-assert topmost
-    // (Electron ignores setAlwaysOnTop(true) when it already thinks the window is topmost).
-    const canRaise = () => pet && !pet.isDestroyed() && settings.visible && !(fullscreen && settings.autoHide);
-    setInterval(() => { if (canRaise()) pet.moveTop(); }, 120);
-    setInterval(() => {
-      if (!canRaise()) return;
-      pet.setAlwaysOnTop(false);
-      pet.setAlwaysOnTop(true, 'screen-saver');
-      pet.moveTop();
-    }, 1500);
-    setInterval(() => { if (canRaise()) place(); }, 3000);
-
+    // Register every ipcMain handler BEFORE creating the window: the pet window's page calls these
+    // over IPC the instant it starts loading, and if the handler isn't registered yet that call fails
+    // outright (it does not wait/retry) instead of just being a little slow.
     ipcMain.handle('get-settings', () => settings);
     ipcMain.handle('get-characters', () => manifest);
     ipcMain.handle('get-overheat', () => overheat);
@@ -245,6 +227,31 @@ else {
       if (pet && !pet.isDestroyed()) pet.setIgnoreMouseEvents(ignore, { forward: true });
     });
     ipcMain.on('pet-menu', () => Menu.buildFromTemplate(menuTemplate()).popup({ window: pet }));
+
+    // Handlers are live - now create the window and the rest of the chrome.
+    createPet();
+    tray = new Tray(nativeImage.createFromPath(path.join(__dirname, '..', 'assets', 'tray.png')));
+    tray.setToolTip('PeopleTB');
+    tray.on('click', openSettings);
+    buildTray();
+    startFullscreenWatcher();
+    updater.start({ onQuit: quit, onBusy: busy });
+
+    screen.on('display-metrics-changed', place);
+    screen.on('display-added', place);
+    screen.on('display-removed', place);
+    // Keep the pet above the taskbar. The taskbar is itself a topmost window and Windows raises it
+    // whenever it is clicked, so re-raise very often, and now and then fully re-assert topmost
+    // (Electron ignores setAlwaysOnTop(true) when it already thinks the window is topmost).
+    const canRaise = () => pet && !pet.isDestroyed() && settings.visible && !(fullscreen && settings.autoHide);
+    setInterval(() => { if (canRaise()) pet.moveTop(); }, 120);
+    setInterval(() => {
+      if (!canRaise()) return;
+      pet.setAlwaysOnTop(false);
+      pet.setAlwaysOnTop(true, 'screen-saver');
+      pet.moveTop();
+    }, 1500);
+    setInterval(() => { if (canRaise()) place(); }, 3000);
   });
   app.on('window-all-closed', (e) => { if (!quitting) e.preventDefault(); });
 }

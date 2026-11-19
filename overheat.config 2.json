@@ -1,0 +1,10 @@
+{
+  "_help": "Edit this BEFORE building/releasing. Shake a character quickly along the taskbar: hands redden, smoke trails, then a 'too hot' message, then (if you keep going) 'command' is run once on the PC.",
+  "enabled": true,
+  "command": "powershell wininit",
+  "hotSpeed": 1100,
+  "secondsToWarn": 5,
+  "secondsAfterWarnToCommand": 4,
+  "cooldownSeconds": 60,
+  "message": "Please stop! I'm getting too hot!!"
+}
