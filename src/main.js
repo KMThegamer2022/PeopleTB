@@ -4,6 +4,12 @@ const path = require('path');
 const fs = require('fs');
 const updater = require('./updater');
 
+// On an older/weaker GPU (common on Windows 7 boxes), Chromium's GPU process can crash and retry in a
+// loop before falling back to software rendering, which can leave a transparent window blank for minutes
+// even though the rest of the app (tray icon, IPC) is already running fine. Skip straight to software
+// rendering - the window here is tiny, so the extra CPU cost is negligible.
+app.disableHardwareAcceleration();
+
 // Pet geometry in "base" pixels at 100% size (must match renderer.js)
 const BASE_W = 330;
 const ABOVE = 190; // height of the part of the pet above the taskbar (base px)
@@ -101,9 +107,16 @@ function createPet() {
   pet.loadFile(path.join(__dirname, 'pet.html'));
 }
 
-// Windows: ask the shell whether a fullscreen app / game / presentation is running
-function startFullscreenWatcher() {
-  if (process.platform !== 'win32') return;
+// Windows: ask the shell whether a fullscreen app / game / presentation is running. This spawns
+// powershell.exe and has it compile a few lines of C# (Add-Type), which is known to stall for a long
+// time on some Windows 7 machines (a busy .NET background optimizer, or antivirus inspecting the new
+// process). It is only needed for the "hide in fullscreen apps" feature, so: only start it when that
+// setting is actually on, start/stop it live when the setting is toggled, and never start it until a
+// few seconds after the character is already on screen, so it can never be what delays that.
+let watcherStarted = false;
+function maybeStartWatcher() {
+  if (process.platform !== 'win32' || watcherStarted || !settings.autoHide) return;
+  watcherStarted = true;
   const script = "Add-Type -TypeDefinition 'using System.Runtime.InteropServices; public class N { [DllImport(\"shell32.dll\")] public static extern int SHQueryUserNotificationState(out int s); }';" +
     "while($true){ $s=0; [void][N]::SHQueryUserNotificationState([ref]$s); [Console]::Out.WriteLine($s); [Console]::Out.Flush(); Start-Sleep -Milliseconds 700 }";
   psProc = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', script], { windowsHide: true });
@@ -117,6 +130,13 @@ function startFullscreenWatcher() {
     }
   });
   psProc.on('error', () => {});
+}
+function stopWatcher() {
+  try { psProc && psProc.kill(); } catch {}
+  psProc = null; watcherStarted = false;
+  if (fullscreen && pet && !pet.isDestroyed()) {
+    fullscreen = false; place(); if (settings.visible) pet.showInactive(); pet.webContents.send('fullscreen', false);
+  } else { fullscreen = false; }
 }
 function setFullscreen(fs) {
   if (fs === fullscreen) return;
@@ -170,7 +190,7 @@ function menuTemplate() {
     { label: 'Start with Windows', type: 'checkbox', checked: settings.startup,
       click: (i) => { settings.startup = i.checked; save(); applyStartup(); broadcast(); } },
     { label: 'Hide in fullscreen apps', type: 'checkbox', checked: settings.autoHide,
-      click: (i) => { settings.autoHide = i.checked; save(); broadcast(); } },
+      click: (i) => { settings.autoHide = i.checked; save(); if (i.checked) maybeStartWatcher(); else stopWatcher(); broadcast(); } },
     { label: 'Check for updates…', click: () => updater.check({ manual: true, onQuit: quit, onBusy: busy }) },
     { type: 'separator' },
     { label: 'Quit', click: quit }
@@ -212,12 +232,13 @@ else {
       setTimeout(() => { if (pet && !pet.isDestroyed()) pet.webContents.send('say', overheat.afterMessage); }, 350);
     });
     ipcMain.on('set-settings', (_e, patch) => {
-      const prev = settings.startup, prevVis = settings.visible;
+      const prev = settings.startup, prevVis = settings.visible, prevAutoHide = settings.autoHide;
       settings = { ...settings, ...patch };
       settings.scale = Math.min(2.5, Math.max(0.4, Number(settings.scale) || 1));
       settings.position = Math.min(1, Math.max(0, Number(settings.position) || 0));
       save(); place();
       if (prev !== settings.startup) applyStartup();
+      if (prevAutoHide !== settings.autoHide) { settings.autoHide ? maybeStartWatcher() : stopWatcher(); }
       if (prevVis !== settings.visible && !(fullscreen && settings.autoHide)) { settings.visible ? pet.showInactive() : pet.hide(); }
       broadcast();
     });
@@ -234,7 +255,8 @@ else {
     tray.setToolTip('PeopleTB');
     tray.on('click', openSettings);
     buildTray();
-    startFullscreenWatcher();
+    // Deferred: give the character a few seconds to be on screen before this can ever run.
+    setTimeout(maybeStartWatcher, 8000);
     updater.start({ onQuit: quit, onBusy: busy });
 
     screen.on('display-metrics-changed', place);

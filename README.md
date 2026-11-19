@@ -31,3 +31,11 @@ All characters share Jack's hands.
 On startup (and every 6 h) PeopleTB asks the GitHub API for the latest release. If the API is rate limited it falls back to the
 `github.com/.../releases/latest` redirect, then offers to download and silently install the new installer.
 
+
+## If the character is very slow to appear (older PCs / Windows 7)
+Two things in v1.3.6+ target this:
+- Hardware acceleration is disabled, since a weak/old GPU can make Chromium's GPU process crash-loop and
+  leave a transparent window blank for minutes before it falls back to software rendering.
+- The "hide in fullscreen apps" watcher (which spawns PowerShell to compile a tiny bit of C#) now only
+  starts a few seconds after the character is already shown, and only if that setting is on - turn off
+  "Hide in fullscreen apps" in Settings to skip it entirely if PowerShell is slow on your PC.
