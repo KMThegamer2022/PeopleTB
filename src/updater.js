@@ -8,7 +8,7 @@ const REPO = 'KMThegamer2022/PeopleTB';
 const artifact = (v) => `PeopleTB-Setup-${v}.exe`;
 let busy = false;
 
-async function check({ manual = false, onQuit } = {}) {
+async function check({ manual = false, onQuit, onBusy } = {}) {
   if (busy) return;
   if (!app.isPackaged && !manual) return; // don't self-update dev runs
   busy = true;
@@ -26,7 +26,8 @@ async function check({ manual = false, onQuit } = {}) {
     });
     if (response !== 0) return;
     const dest = path.join(os.tmpdir(), artifact(latest.version));
-    await core.download(latest.url, dest);
+    if (onBusy) onBusy(true);
+    try { await core.download(latest.url, dest); } finally { if (onBusy) onBusy(false); }
     // Silent per-user install; --force-run relaunches the app when it has finished.
     spawn(dest, ['/S', '--force-run'], { detached: true, stdio: 'ignore' }).unref();
     (onQuit || (() => app.quit()))();

@@ -154,7 +154,7 @@ function menuTemplate() {
       click: (i) => { settings.startup = i.checked; save(); applyStartup(); broadcast(); } },
     { label: 'Hide in fullscreen apps', type: 'checkbox', checked: settings.autoHide,
       click: (i) => { settings.autoHide = i.checked; save(); broadcast(); } },
-    { label: 'Check for updates…', click: () => updater.check({ manual: true, onQuit: quit }) },
+    { label: 'Check for updates…', click: () => updater.check({ manual: true, onQuit: quit, onBusy: busy }) },
     { type: 'separator' },
     { label: 'Quit', click: quit }
   ];
@@ -162,6 +162,7 @@ function menuTemplate() {
 function buildTray() {
   tray.setContextMenu(Menu.buildFromTemplate(menuTemplate()));
 }
+function busy(b) { if (pet && !pet.isDestroyed()) pet.webContents.send('busy', b); }
 function quit() { quitting = true; try { psProc && psProc.kill(); } catch {} app.quit(); }
 function broadcast() {
   if (settingsWin && !settingsWin.isDestroyed()) settingsWin.webContents.send('settings', settings);
@@ -181,7 +182,7 @@ else {
     tray.on('click', openSettings);
     buildTray();
     startFullscreenWatcher();
-    updater.start({ onQuit: quit });
+    updater.start({ onQuit: quit, onBusy: busy });
 
     screen.on('display-metrics-changed', place);
     screen.on('display-added', place);

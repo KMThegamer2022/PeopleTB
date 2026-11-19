@@ -13,9 +13,13 @@ const clamp01 = (x) => Math.max(0, Math.min(1, x));
 
 let head, handL, handR, ready = false, bounceT = -1, ignoring = true;
 let hidden = 0, hiddenTarget = 0, lastT = 0; // hidden: 0 = clinging, 1 = tucked away (fullscreen)
+let loadingJobs = 1, loadingSince = performance.now(), busy = false; // spinner while starting / switching character / updating
 let scale = 1.5, position = 0.5, headW = 170;
 let dpr = 1, W = 0, H = 0, petLeft = 0, pw = 0;
 window.jack.onFullscreen((fs) => { hiddenTarget = fs ? 1 : 0; });
+window.jack.onBusy((b) => { if (b && !busy) loadingSince = performance.now(); busy = b; });
+function jobStart() { if (loadingJobs++ === 0) loadingSince = performance.now(); }
+function jobEnd() { loadingJobs = Math.max(0, loadingJobs - 1); }
 
 function resize() {
   dpr = window.devicePixelRatio || 1;
@@ -109,6 +113,22 @@ function drawBubble(now) {
   ctx.restore();
 }
 
+// ---------- loading spinner ----------
+function drawSpinner(now) {
+  if (!(loadingJobs > 0 || busy) || now - loadingSince < 120) return;
+  const cx = petLeft + pw / 2, cy = Math.max(40, H - 70 * scale);
+  ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = 'rgba(15,18,28,0.72)';
+  ctx.beginPath(); ctx.arc(cx, cy, 28, 0, Math.PI * 2); ctx.fill();
+  const n = 12, rot = (now / 90) % n;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2, f = ((i - rot + n) % n) / n;       // trailing fade
+    ctx.fillStyle = `rgba(255,255,255,${(0.15 + 0.85 * (1 - f)).toFixed(2)})`;
+    ctx.beginPath(); ctx.arc(cx + Math.cos(a) * 16, cy + Math.sin(a) * 16, 3, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
+
 // ---------- character ----------
 const HAND_K = 0.34, HAND_OFF = 121;
 function drawHand(img, cx, bottom) {
@@ -171,8 +191,17 @@ function draw(t) {
   drawSmoke();
   ctx.drawImage(petCv, 0, 0, petCv.width, petCv.height, petLeft, 0, petCv.width / dpr, petCv.height / dpr);
   drawBubble(t);
+  drawSpinner(t);
 }
-function loop(t) { if (ready) draw(t); requestAnimationFrame(loop); }
+function loop(t) {
+  if (ready) draw(t);
+  else {                                   // still starting up: just the spinner
+    petLeft = Math.max(0, (W - pw) * position);
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
+    drawSpinner(t);
+  }
+  requestAnimationFrame(loop);
+}
 
 // ---------- mouse: click-through except over the character's own pixels ----------
 function overPet(x, y) {
@@ -215,8 +244,8 @@ async function applyCharacter(st) {
   if (!chars) return;
   const c = chars.characters.find((x) => x.id === st.character) || chars.characters[0];
   const sk = c.skins.find((x) => x.id === st.skin) || c.skins[0];
-  const img = await load('../assets/characters/' + sk.head);
-  head = img; headW = sk.width || 170;
+  jobStart();
+  try { head = await load('../assets/characters/' + sk.head); headW = sk.width || 170; } finally { jobEnd(); }
 }
 function applySettings(st) {
   if (st.scale && st.scale !== scale) { scale = st.scale; resize(); }
@@ -224,6 +253,7 @@ function applySettings(st) {
   return applyCharacter(st);
 }
 Promise.all([load('../assets/hand-left.png'), load('../assets/hand-right.png'), window.jack.getCharacters(), window.jack.getSettings()])
-  .then(async ([l, r, c, st]) => { handL = l; handR = r; chars = c; scale = st.scale || scale; position = st.position; await applyCharacter(st); resize(); ready = true; });
+  .then(async ([l, r, c, st]) => { handL = l; handR = r; chars = c; scale = st.scale || scale; position = st.position; await applyCharacter(st); resize(); ready = true; jobEnd(); });
 window.jack.onSettings(applySettings);
+resize();
 requestAnimationFrame(loop);
