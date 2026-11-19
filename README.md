@@ -31,8 +31,3 @@ All characters share Jack's hands.
 On startup (and every 6 h) PeopleTB asks the GitHub API for the latest release. If the API is rate limited it falls back to the
 `github.com/.../releases/latest` redirect, then offers to download and silently install the new installer.
 
-## Overheat (easter egg)
-Drag a character along the taskbar. Move them too fast and their hands turn red, then they leave a trail of smoke,
-after ~5 s they say *"Please stop! I'm getting too hot!!"*, and if you keep going ~4 s more, `command` from
-`overheat.config.json` is run once on the PC (cooldown 60 s). Stop and they slowly cool back to normal.
-**Edit `overheat.config.json` before building/tagging a release** — `command` is empty by default, so nothing runs.
