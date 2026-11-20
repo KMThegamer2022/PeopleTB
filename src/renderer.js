@@ -201,7 +201,7 @@ function draw(t) {
   const dt = Math.min(0.1, (t - lastT) / 1000); lastT = t;
   hidden += Math.sign(hiddenTarget - hidden) * Math.min(Math.abs(hiddenTarget - hidden), dt / 0.9);
   for (const p of pets) updateHeat(p, dt, t);
-  for (const p of pets) drawPet(p, t, dt);
+  for (const p of pets) { if (p.head) drawPet(p, t, dt); }      // head art loads async; skip until it's ready
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, cv.width, cv.height);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
