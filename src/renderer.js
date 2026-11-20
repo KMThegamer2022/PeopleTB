@@ -144,10 +144,11 @@ const HAND_K = 0.34, HAND_OFF = 121;
 let handScale = 1;
 function drawHand(img, cx, dropPx) {
   const w = img.width * HAND_K * handScale, h = img.height * HAND_K * handScale;
-  // Anchored to the taskbar's visual top edge (ABOVE), not the window's own bottom - that included
-  // the OS's own taskbar-thickness gap, which swamped small hands entirely at low handScale. This way
-  // the same fraction of the hand always shows above the edge, at any size and any taskbar thickness.
-  const y = ABOVE - h * 0.7 + dropPx;
+  // Peek above the taskbar edge is a fixed amount (from the hand's BASE size, not handScale),
+  // so the fingertip stays pinned at the edge at any hand size instead of floating higher as
+  // handScale grows. The rest of the hand extends down in front of the taskbar.
+  const peek = img.height * HAND_K * 0.25;
+  const y = ABOVE - peek + dropPx;
   const tint = clamp01(heat);
   if (tint < 0.02) { pctx.drawImage(img, cx - w / 2, y, w, h); return; }
   // red-hot tint: draw the hand, then paint red over only its opaque pixels
