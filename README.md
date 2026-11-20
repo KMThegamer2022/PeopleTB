@@ -28,8 +28,8 @@ in the right-click **Characters → Add…** menu. `tools/cutout.swift` (macOS) 
 All characters share Jack's hands.
 
 You can have several characters on the taskbar at once: **Characters → Add…** adds another instance, and **Characters → Remove**
-takes one off. Each instance is dragged and resized independently; the Settings window has an **Instance** picker (with its own
-+/– buttons) to edit each one's character, size, hand size and position.
+takes one off. Each instance is dragged and resized independently; the Settings window has a tab per character (with a **+ Add**
+tab and a **✕** on each one to remove it) to edit each one's character, size, hand size and position.
 
 ## Auto-update
 On startup (and every 6 h) PeopleTB asks the GitHub API for the latest release. If the API is rate limited it falls back to the

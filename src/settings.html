@@ -1,93 +1,137 @@
 <!doctype html><html><head><meta charset="utf-8"><title>PeopleTB Settings</title>
 <style>
 *{box-sizing:border-box}
-body{margin:0;padding:22px;background:#12151c;color:#e8ecf4;font:14px "Segoe UI",system-ui,sans-serif;user-select:none}
-h1{font-size:18px;margin:0 0 4px}p.sub{margin:0 0 20px;color:#8b93a7;font-size:12px}
-.row{margin-bottom:18px}.lab{display:flex;justify-content:space-between;margin-bottom:6px}
+body{margin:0;padding:0;background:#12151c;color:#e8ecf4;font:14px "Segoe UI",system-ui,sans-serif;user-select:none}
+h1{font-size:16px;margin:0;padding:16px 20px 0}
+p.sub{margin:2px 0 0;padding:0 20px 14px;color:#8b93a7;font-size:12px}
+
+.tabs{display:flex;gap:4px;padding:0 16px;border-bottom:1px solid #232838;overflow-x:auto}
+.tab{display:flex;align-items:center;gap:6px;padding:9px 12px;border-radius:8px 8px 0 0;background:transparent;color:#8b93a7;cursor:pointer;white-space:nowrap;font-size:13px}
+.tab:hover{background:#1c2130}
+.tab.active{background:#1c2130;color:#e8ecf4;box-shadow:inset 0 2px 0 #3b82f6}
+.tab .x{opacity:.5;padding:0 2px;border-radius:4px}
+.tab .x:hover{opacity:1;background:#5b1f27}
+.tab.add{color:#7aa2ff;font-weight:600}
+
+.panel{padding:18px 20px}
+.empty{color:#8b93a7;font-size:13px;padding:20px 0;text-align:center}
+.section-title{font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:#6b7280;margin:0 0 10px}
+.row{margin-bottom:16px}.lab{display:flex;justify-content:space-between;margin-bottom:6px}
 .val{color:#7aa2ff;font-variant-numeric:tabular-nums}
 input[type=range]{width:100%;accent-color:#3b82f6}
-label.chk{display:flex;gap:10px;align-items:center;cursor:pointer}
+label.chk{display:flex;gap:10px;align-items:center;cursor:pointer;padding:6px 0}
 input[type=checkbox]{width:18px;height:18px;accent-color:#3b82f6}
-.btns{display:flex;gap:10px;margin-top:26px}
-button{flex:1;padding:10px;border-radius:8px;border:1px solid #2a3142;background:#1c2130;color:#e8ecf4;font:inherit;cursor:pointer}
-button:hover{background:#252c40}button.danger{background:#5b1f27;border-color:#7d2a35}button.danger:hover{background:#7d2a35}
-button:disabled{opacity:.4;cursor:default}
 select{width:100%;padding:8px;border-radius:8px;border:1px solid #2a3142;background:#1c2130;color:#e8ecf4;font:inherit}
-.instRow{display:flex;gap:8px}.instRow select{flex:1}.instRow button{flex:0 0 auto;width:40px;padding:8px}
+
+hr{border:none;border-top:1px solid #232838;margin:4px 0 16px}
+
+.btns{display:flex;gap:10px;padding:0 20px 18px}
+button.wide{flex:1;padding:10px;border-radius:8px;border:1px solid #2a3142;background:#1c2130;color:#e8ecf4;font:inherit;cursor:pointer}
+button.wide:hover{background:#252c40}button.wide.danger{background:#5b1f27;border-color:#7d2a35}button.wide.danger:hover{background:#7d2a35}
 </style></head><body>
 <h1>PeopleTB</h1><p class="sub">Your friends cling onto your taskbar. Right-click one to switch.</p>
-<div class="row"><div class="lab"><span>Instance</span></div>
-<div class="instRow"><select id="inst"></select><button id="addInst" title="Add another">+</button><button id="rmInst" class="danger" title="Remove this one">–</button></div></div>
-<div class="row"><div class="lab"><span>Character</span></div><select id="char"></select></div>
-<div class="row"><div class="lab"><span>Size</span><span class="val" id="sv"></span></div>
-<input id="scale" type="range" min="40" max="250" step="5"></div>
-<div class="row"><div class="lab"><span>Hand size</span><span class="val" id="hv"></span></div>
-<input id="hand" type="range" min="30" max="250" step="5"></div>
-<div class="row"><div class="lab"><span>Position along taskbar</span><span class="val" id="pv"></span></div>
-<input id="pos" type="range" min="0" max="100" step="1"></div>
-<div class="row"><label class="chk"><input id="vis" type="checkbox"> Show on taskbar</label></div>
-<div class="row"><label class="chk"><input id="startup" type="checkbox"> Start with Windows</label></div>
-<div class="row"><label class="chk"><input id="auto" type="checkbox"> Tuck away when an app goes fullscreen</label></div>
-<div class="btns"><button id="close">Close</button><button class="danger" id="quit">Quit</button></div>
+
+<div class="tabs" id="tabs"></div>
+<div class="panel" id="panel"></div>
+
+<hr style="margin:0 20px 16px">
+<div class="panel" style="padding-top:0">
+  <div class="section-title">General</div>
+  <label class="chk"><input id="vis" type="checkbox"> Show on taskbar</label>
+  <label class="chk"><input id="auto" type="checkbox"> Tuck away when an app goes fullscreen</label>
+  <label class="chk"><input id="startup" type="checkbox"> Start with Windows</label>
+</div>
+<div class="btns"><button class="wide" id="close">Close</button><button class="wide danger" id="quit">Quit</button></div>
+
 <script>
 const $=id=>document.getElementById(id);
 let settings=null, cs=null, curIdx=0;
 
-function fillCharSelect(){
-  if(!cs)return;$('char').innerHTML='';
-  cs.characters.forEach(c=>c.skins.forEach(k=>{const o=document.createElement('option');o.value=c.id+'/'+k.id;o.textContent=c.skins.length>1?c.name+' – '+k.name:c.name;$('char').appendChild(o)}));
-}
 function petLabel(p){
   if(!cs)return p.character;
   const c=cs.characters.find(x=>x.id===p.character);if(!c)return p.character;
   const sk=c.skins.find(x=>x.id===p.skin);
   return sk&&c.skins.length>1?c.name+' – '+sk.name:c.name;
 }
-function fillInst(){
-  $('inst').innerHTML='';
-  settings.pets.forEach((p,i)=>{const o=document.createElement('option');o.value=i;o.textContent=(i+1)+'. '+petLabel(p);$('inst').appendChild(o)});
-  if(curIdx>=settings.pets.length)curIdx=Math.max(0,settings.pets.length-1);
-  $('inst').value=curIdx;
+
+function renderTabs(){
+  const tabs=$('tabs');tabs.innerHTML='';
+  settings.pets.forEach((p,i)=>{
+    const t=document.createElement('div');
+    t.className='tab'+(i===curIdx?' active':'');
+    const name=document.createElement('span');name.textContent=(i+1)+'. '+petLabel(p);
+    t.appendChild(name);
+    const x=document.createElement('span');x.className='x';x.textContent='✕';
+    x.title='Remove';
+    x.onclick=e=>{e.stopPropagation();removePet(p.id)};
+    t.appendChild(x);
+    t.onclick=()=>{curIdx=i;render()};
+    tabs.appendChild(t);
+  });
+  const add=document.createElement('div');
+  add.className='tab add';add.textContent='+ Add';
+  add.onclick=addPet;
+  tabs.appendChild(add);
 }
-function showPet(){
-  const p=settings.pets[curIdx], has=!!p;
-  ['char','scale','hand','pos'].forEach(id=>$(id).disabled=!has);
-  $('rmInst').disabled=!settings.pets.length;
-  if(!has)return;
+
+function renderPanel(){
+  const panel=$('panel');
+  const p=settings.pets[curIdx];
+  if(!p){panel.innerHTML='<div class="empty">No characters yet — click + Add above.</div>';return}
+  panel.innerHTML=`
+    <div class="row"><div class="section-title">Character</div>
+      <select id="char"></select></div>
+    <div class="row"><div class="lab"><span>Size</span><span class="val" id="sv"></span></div>
+      <input id="scale" type="range" min="40" max="250" step="5"></div>
+    <div class="row"><div class="lab"><span>Hand size</span><span class="val" id="hv"></span></div>
+      <input id="hand" type="range" min="30" max="250" step="5"></div>
+    <div class="row"><div class="lab"><span>Position along taskbar</span><span class="val" id="pv"></span></div>
+      <input id="pos" type="range" min="0" max="100" step="1"></div>
+  `;
+  if(cs){
+    cs.characters.forEach(c=>c.skins.forEach(k=>{
+      const o=document.createElement('option');o.value=c.id+'/'+k.id;
+      o.textContent=c.skins.length>1?c.name+' – '+k.name:c.name;
+      $('char').appendChild(o);
+    }));
+  }
   $('char').value=p.character+'/'+p.skin;
   $('scale').value=Math.round(p.scale*100);$('sv').textContent=Math.round(p.scale*100)+'%';
   $('hand').value=Math.round((p.handScale??1)*100);$('hv').textContent=Math.round((p.handScale??1)*100)+'%';
   $('pos').value=Math.round(p.position*100);$('pv').textContent=Math.round(p.position*100)+'%';
-}
-function show(s){
-  settings=s;
-  $('startup').checked=s.startup;$('auto').checked=s.autoHide;$('vis').checked=s.visible;
-  fillInst();showPet();
-}
-jack.getCharacters().then(c=>{cs=c;fillCharSelect();if(settings){fillInst();showPet()}});
-jack.getSettings().then(show);jack.onSettings(show);
 
-function patchPet(field,val){
-  const next=settings.pets.map((p,i)=>i===curIdx?{...p,[field]:val}:p);
+  $('char').onchange=e=>{const [c,k]=e.target.value.split('/');patchPet({character:c,skin:k});render()};
+  $('scale').oninput=e=>{$('sv').textContent=e.target.value+'%';patchPet({scale:e.target.value/100})};
+  $('hand').oninput=e=>{$('hv').textContent=e.target.value+'%';patchPet({handScale:e.target.value/100})};
+  $('pos').oninput=e=>{$('pv').textContent=e.target.value+'%';patchPet({position:e.target.value/100})};
+}
+
+function render(){renderTabs();renderPanel()}
+
+function patchPet(fields){
+  const next=settings.pets.map((p,i)=>i===curIdx?{...p,...fields}:p);
   settings.pets=next;jack.setSettings({pets:next});
 }
-$('inst').onchange=e=>{curIdx=+e.target.value;showPet()};
-$('char').onchange=e=>{const [c,k]=e.target.value.split('/');const next=settings.pets.map((p,i)=>i===curIdx?{...p,character:c,skin:k}:p);settings.pets=next;jack.setSettings({pets:next})};
-$('scale').oninput=e=>{$('sv').textContent=e.target.value+'%';patchPet('scale',e.target.value/100)};
-$('hand').oninput=e=>{$('hv').textContent=e.target.value+'%';patchPet('handScale',e.target.value/100)};
-$('pos').oninput=e=>{$('pv').textContent=e.target.value+'%';patchPet('position',e.target.value/100)};
-$('addInst').onclick=()=>{
+function addPet(){
   const cur=settings.pets[curIdx]||{character:(cs&&cs.default)||'jack',skin:'default'};
   const id=Date.now().toString(36)+Math.random().toString(36).slice(2,7);
   const next=[...settings.pets,{id,character:cur.character,skin:cur.skin,scale:1.5,handScale:1,position:0.5}];
   settings.pets=next;curIdx=next.length-1;jack.setSettings({pets:next});
-};
-$('rmInst').onclick=()=>{
-  if(!settings.pets.length)return;
-  const removeId=settings.pets[curIdx].id;
-  const next=settings.pets.filter(p=>p.id!==removeId);
+}
+function removePet(id){
+  const next=settings.pets.filter(p=>p.id!==id);
   settings.pets=next;curIdx=Math.max(0,curIdx-1);jack.setSettings({pets:next});
-};
+}
+
+function show(s){
+  settings=s;
+  $('startup').checked=s.startup;$('auto').checked=s.autoHide;$('vis').checked=s.visible;
+  if(curIdx>=settings.pets.length)curIdx=Math.max(0,settings.pets.length-1);
+  render();
+}
+jack.getCharacters().then(c=>{cs=c;render()});
+jack.getSettings().then(show);jack.onSettings(show);
+
 $('startup').onchange=e=>jack.setSettings({startup:e.target.checked});
 $('auto').onchange=e=>jack.setSettings({autoHide:e.target.checked});
 $('vis').onchange=e=>jack.setSettings({visible:e.target.checked});
