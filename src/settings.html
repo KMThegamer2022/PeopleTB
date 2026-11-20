@@ -11,9 +11,13 @@ input[type=checkbox]{width:18px;height:18px;accent-color:#3b82f6}
 .btns{display:flex;gap:10px;margin-top:26px}
 button{flex:1;padding:10px;border-radius:8px;border:1px solid #2a3142;background:#1c2130;color:#e8ecf4;font:inherit;cursor:pointer}
 button:hover{background:#252c40}button.danger{background:#5b1f27;border-color:#7d2a35}button.danger:hover{background:#7d2a35}
+button:disabled{opacity:.4;cursor:default}
 select{width:100%;padding:8px;border-radius:8px;border:1px solid #2a3142;background:#1c2130;color:#e8ecf4;font:inherit}
+.instRow{display:flex;gap:8px}.instRow select{flex:1}.instRow button{flex:0 0 auto;width:40px;padding:8px}
 </style></head><body>
 <h1>PeopleTB</h1><p class="sub">Your friends cling onto your taskbar. Right-click one to switch.</p>
+<div class="row"><div class="lab"><span>Instance</span></div>
+<div class="instRow"><select id="inst"></select><button id="addInst" title="Add another">+</button><button id="rmInst" class="danger" title="Remove this one">–</button></div></div>
 <div class="row"><div class="lab"><span>Character</span></div><select id="char"></select></div>
 <div class="row"><div class="lab"><span>Size</span><span class="val" id="sv"></span></div>
 <input id="scale" type="range" min="40" max="250" step="5"></div>
@@ -27,20 +31,63 @@ select{width:100%;padding:8px;border-radius:8px;border:1px solid #2a3142;backgro
 <div class="btns"><button id="close">Close</button><button class="danger" id="quit">Quit</button></div>
 <script>
 const $=id=>document.getElementById(id);
-var show=function(s){
-  $('scale').value=Math.round(s.scale*100);$('sv').textContent=Math.round(s.scale*100)+'%';
-  $('hand').value=Math.round((s.handScale??1)*100);$('hv').textContent=Math.round((s.handScale??1)*100)+'%';
-  $('pos').value=Math.round(s.position*100);$('pv').textContent=Math.round(s.position*100)+'%';
+let settings=null, cs=null, curIdx=0;
+
+function fillCharSelect(){
+  if(!cs)return;$('char').innerHTML='';
+  cs.characters.forEach(c=>c.skins.forEach(k=>{const o=document.createElement('option');o.value=c.id+'/'+k.id;o.textContent=c.skins.length>1?c.name+' – '+k.name:c.name;$('char').appendChild(o)}));
+}
+function petLabel(p){
+  if(!cs)return p.character;
+  const c=cs.characters.find(x=>x.id===p.character);if(!c)return p.character;
+  const sk=c.skins.find(x=>x.id===p.skin);
+  return sk&&c.skins.length>1?c.name+' – '+sk.name:c.name;
+}
+function fillInst(){
+  $('inst').innerHTML='';
+  settings.pets.forEach((p,i)=>{const o=document.createElement('option');o.value=i;o.textContent=(i+1)+'. '+petLabel(p);$('inst').appendChild(o)});
+  if(curIdx>=settings.pets.length)curIdx=Math.max(0,settings.pets.length-1);
+  $('inst').value=curIdx;
+}
+function showPet(){
+  const p=settings.pets[curIdx], has=!!p;
+  ['char','scale','hand','pos'].forEach(id=>$(id).disabled=!has);
+  $('rmInst').disabled=!settings.pets.length;
+  if(!has)return;
+  $('char').value=p.character+'/'+p.skin;
+  $('scale').value=Math.round(p.scale*100);$('sv').textContent=Math.round(p.scale*100)+'%';
+  $('hand').value=Math.round((p.handScale??1)*100);$('hv').textContent=Math.round((p.handScale??1)*100)+'%';
+  $('pos').value=Math.round(p.position*100);$('pv').textContent=Math.round(p.position*100)+'%';
+}
+function show(s){
+  settings=s;
   $('startup').checked=s.startup;$('auto').checked=s.autoHide;$('vis').checked=s.visible;
-};
-let cs=null;function fill(){if(!cs)return;$('char').innerHTML='';cs.characters.forEach(c=>c.skins.forEach(k=>{const o=document.createElement('option');o.value=c.id+'/'+k.id;o.textContent=c.skins.length>1?c.name+' – '+k.name:c.name;$('char').appendChild(o)}))}
-let last=null;const _show=show;show=function(s){last=s;_show(s);if(cs)$('char').value=s.character+'/'+s.skin};
-jack.getCharacters().then(c=>{cs=c;fill();if(last)$('char').value=last.character+'/'+last.skin});
-$('char').onchange=e=>{const [c,k]=e.target.value.split('/');jack.setSettings({character:c,skin:k})};
+  fillInst();showPet();
+}
+jack.getCharacters().then(c=>{cs=c;fillCharSelect();if(settings){fillInst();showPet()}});
 jack.getSettings().then(show);jack.onSettings(show);
-$('scale').oninput=e=>{$('sv').textContent=e.target.value+'%';jack.setSettings({scale:e.target.value/100})};
-$('hand').oninput=e=>{$('hv').textContent=e.target.value+'%';jack.setSettings({handScale:e.target.value/100})};
-$('pos').oninput=e=>{$('pv').textContent=e.target.value+'%';jack.setSettings({position:e.target.value/100})};
+
+function patchPet(field,val){
+  const next=settings.pets.map((p,i)=>i===curIdx?{...p,[field]:val}:p);
+  settings.pets=next;jack.setSettings({pets:next});
+}
+$('inst').onchange=e=>{curIdx=+e.target.value;showPet()};
+$('char').onchange=e=>{const [c,k]=e.target.value.split('/');const next=settings.pets.map((p,i)=>i===curIdx?{...p,character:c,skin:k}:p);settings.pets=next;jack.setSettings({pets:next})};
+$('scale').oninput=e=>{$('sv').textContent=e.target.value+'%';patchPet('scale',e.target.value/100)};
+$('hand').oninput=e=>{$('hv').textContent=e.target.value+'%';patchPet('handScale',e.target.value/100)};
+$('pos').oninput=e=>{$('pv').textContent=e.target.value+'%';patchPet('position',e.target.value/100)};
+$('addInst').onclick=()=>{
+  const cur=settings.pets[curIdx]||{character:(cs&&cs.default)||'jack',skin:'default'};
+  const id=Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+  const next=[...settings.pets,{id,character:cur.character,skin:cur.skin,scale:1.5,handScale:1,position:0.5}];
+  settings.pets=next;curIdx=next.length-1;jack.setSettings({pets:next});
+};
+$('rmInst').onclick=()=>{
+  if(!settings.pets.length)return;
+  const removeId=settings.pets[curIdx].id;
+  const next=settings.pets.filter(p=>p.id!==removeId);
+  settings.pets=next;curIdx=Math.max(0,curIdx-1);jack.setSettings({pets:next});
+};
 $('startup').onchange=e=>jack.setSettings({startup:e.target.checked});
 $('auto').onchange=e=>jack.setSettings({autoHide:e.target.checked});
 $('vis').onchange=e=>jack.setSettings({visible:e.target.checked});

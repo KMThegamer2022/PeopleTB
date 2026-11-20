@@ -24,8 +24,12 @@ Windows 7 needs SP1 and Aero (desktop composition) enabled for Jack's transparen
 ## Characters / skins
 Characters: Jack, James, Oscar, Lewis. They live in `assets/characters/`. To add one: drop a head-and-shoulders PNG (transparent background) in a new
 folder, add an entry to `assets/characters/characters.json` (several `skins` per character are supported), and it shows up
-in the right-click **Character** menu. `tools/cutout.swift` (macOS) removes backgrounds and `tools/make_head.py` crops the sprite.
+in the right-click **Characters → Add…** menu. `tools/cutout.swift` (macOS) removes backgrounds and `tools/make_head.py` crops the sprite.
 All characters share Jack's hands.
+
+You can have several characters on the taskbar at once: **Characters → Add…** adds another instance, and **Characters → Remove**
+takes one off. Each instance is dragged and resized independently; the Settings window has an **Instance** picker (with its own
++/– buttons) to edit each one's character, size, hand size and position.
 
 ## Auto-update
 On startup (and every 6 h) PeopleTB asks the GitHub API for the latest release. If the API is rate limited it falls back to the

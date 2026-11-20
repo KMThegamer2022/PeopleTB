@@ -14,11 +14,12 @@ app.disableHardwareAcceleration();
 const BASE_W = 330;
 const ABOVE = 190; // height of the part of the pet above the taskbar (base px)
 
-const defaults = { scale: 1.5, handScale: 1, position: 0.5, startup: false, visible: true, autoHide: true, character: 'jack', skin: 'default' };
+const defaults = { pets: [{ id: 'p1', character: 'jack', skin: 'default', scale: 1.5, handScale: 1, position: 0.5 }], startup: false, visible: true, autoHide: true };
 let fullscreen = false, psProc = null, hideTimer = null;
 let settings = { ...defaults };
 let pet, settingsWin, tray;
 let quitting = false;
+function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 
 // Overheat easter egg: configured in overheat.config.json (edit before building). Shake a character fast
 // enough and, after a warning, a fake BSOD fills the screen for a few seconds then disappears on its own.
@@ -54,16 +55,13 @@ function showBsod() {
 const charsFile = path.join(__dirname, '..', 'assets', 'characters', 'characters.json');
 let manifest = { default: 'jack', characters: [] };
 try { manifest = JSON.parse(fs.readFileSync(charsFile, 'utf8')); } catch {}
-function currentSkin() {
-  const c = manifest.characters.find((x) => x.id === settings.character) || manifest.characters[0];
-  if (!c) return null;
-  const sk = c.skins.find((x) => x.id === settings.skin) || c.skins[0];
-  return { character: c, skin: sk };
+function addPet(character, skin) {
+  settings.pets.push({ id: genId(), character, skin, scale: 1.5, handScale: 1, position: 0.5 });
+  save(); place(); broadcast();
 }
-function setCharacter(id, skin) {
-  const c = manifest.characters.find((x) => x.id === id); if (!c) return;
-  settings.character = id; settings.skin = (c.skins.find((x) => x.id === skin) || c.skins[0]).id;
-  save(); broadcast();
+function removePet(id) {
+  settings.pets = settings.pets.filter((p) => p.id !== id);
+  save(); place(); broadcast();
 }
 
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
@@ -75,7 +73,21 @@ function load() {
       if (fs.existsSync(old)) { fs.mkdirSync(app.getPath('userData'), { recursive: true }); fs.copyFileSync(old, settingsFile()); }
     } catch {}
   }
-  try { settings = { ...defaults, ...JSON.parse(fs.readFileSync(settingsFile(), 'utf8')) }; } catch {}
+  let onDisk = {};
+  try { onDisk = JSON.parse(fs.readFileSync(settingsFile(), 'utf8')); } catch {}
+  settings = { ...defaults, ...onDisk };
+  // migrate from the old single-character settings shape into a one-entry pets array - check the
+  // raw on-disk object (not the defaults-merged one, which already has a non-empty `pets`)
+  if (!Array.isArray(onDisk.pets) || !onDisk.pets.length) {
+    const d = defaults.pets[0];
+    settings.pets = [{
+      id: genId(),
+      character: onDisk.character || d.character, skin: onDisk.skin || d.skin,
+      scale: onDisk.scale || d.scale, handScale: onDisk.handScale || d.handScale,
+      position: typeof onDisk.position === 'number' ? onDisk.position : d.position
+    }];
+  }
+  delete settings.character; delete settings.skin; delete settings.scale; delete settings.handScale; delete settings.position;
 }
 function save() {
   try { fs.writeFileSync(settingsFile(), JSON.stringify(settings, null, 2)); } catch {}
@@ -90,13 +102,15 @@ function place() {
   if (!pet || pet.isDestroyed()) return;
   const d = screen.getPrimaryDisplay();
   const w = d.bounds.width; // full-width, click-through overlay so smoke can trail along the taskbar
-  const above = Math.round(ABOVE * settings.scale);
+  // the window must be tall enough for the biggest character on screen
+  const maxScale = settings.pets.length ? Math.max(...settings.pets.map((p) => p.scale || 1)) : 1;
+  const above = Math.round(ABOVE * maxScale);
   // top of the taskbar == bottom of the work area (taskbar docked at bottom)
   const taskbarTop = d.workArea.y + d.workArea.height;
   let tb = d.bounds.y + d.bounds.height - taskbarTop; // taskbar thickness
   if (tb < 10) tb = 48;                                 // auto-hide: reserve room for the hands
   pet.setBounds({ x: d.bounds.x, y: taskbarTop - above, width: w, height: above + tb });
-  pet.webContents.send('scale', settings.scale);
+  pet.webContents.send('scale', maxScale);
 }
 
 function createPet() {
@@ -180,20 +194,28 @@ function openSettings() {
   settingsWin.loadFile(path.join(__dirname, 'settings.html'));
 }
 
+function petLabel(p) {
+  const c = manifest.characters.find((x) => x.id === p.character); if (!c) return p.character;
+  const sk = c.skins.find((x) => x.id === p.skin);
+  return sk && c.skins.length > 1 ? `${c.name} – ${sk.name}` : c.name;
+}
 function characterMenu() {
-  return manifest.characters.map((c) => {
-    if (c.skins.length === 1) {
-      return { label: c.name, type: 'radio', checked: settings.character === c.id, click: () => setCharacter(c.id, c.skins[0].id) };
-    }
-    return { label: c.name, submenu: c.skins.map((k) => ({
-      label: k.name, type: 'radio', checked: settings.character === c.id && settings.skin === k.id, click: () => setCharacter(c.id, k.id)
-    })) };
+  const add = manifest.characters.map((c) => {
+    if (c.skins.length === 1) return { label: c.name, click: () => addPet(c.id, c.skins[0].id) };
+    return { label: c.name, submenu: c.skins.map((k) => ({ label: k.name, click: () => addPet(c.id, k.id) })) };
   });
+  const items = [{ label: 'Add…', submenu: add }];
+  if (settings.pets.length) {
+    items.push({ type: 'separator' }, { label: 'Remove', submenu: settings.pets.map((p, i) => (
+      { label: `${i + 1}. ${petLabel(p)}`, click: () => removePet(p.id) }
+    )) });
+  }
+  return items;
 }
 
 function menuTemplate() {
   return [
-    { label: 'Character', submenu: characterMenu() },
+    { label: 'Characters', submenu: characterMenu() },
     { type: 'separator' },
     { label: 'Settings…', click: openSettings },
     { label: 'Show on taskbar', type: 'checkbox', checked: settings.visible, click: (i) => setVisible(i.checked) },
@@ -245,9 +267,15 @@ else {
     ipcMain.on('set-settings', (_e, patch) => {
       const prev = settings.startup, prevVis = settings.visible, prevAutoHide = settings.autoHide;
       settings = { ...settings, ...patch };
-      settings.scale = Math.min(2.5, Math.max(0.4, Number(settings.scale) || 1));
-      settings.handScale = Math.min(2.5, Math.max(0.3, Number(settings.handScale) || 1));
-      settings.position = Math.min(1, Math.max(0, Number(settings.position) || 0));
+      if (Array.isArray(settings.pets)) {
+        settings.pets = settings.pets.map((p) => ({
+          id: p.id || genId(),
+          character: p.character || 'jack', skin: p.skin || 'default',
+          scale: Math.min(2.5, Math.max(0.4, Number(p.scale) || 1)),
+          handScale: Math.min(2.5, Math.max(0.3, Number(p.handScale) || 1)),
+          position: Math.min(1, Math.max(0, Number(p.position) || 0))
+        }));
+      }
       save(); place();
       if (prev !== settings.startup) applyStartup();
       if (prevAutoHide !== settings.autoHide) { settings.autoHide ? maybeStartWatcher() : stopWatcher(); }
