@@ -17,6 +17,8 @@ select{width:100%;padding:8px;border-radius:8px;border:1px solid #2a3142;backgro
 <div class="row"><div class="lab"><span>Character</span></div><select id="char"></select></div>
 <div class="row"><div class="lab"><span>Size</span><span class="val" id="sv"></span></div>
 <input id="scale" type="range" min="40" max="250" step="5"></div>
+<div class="row"><div class="lab"><span>Hand size</span><span class="val" id="hv"></span></div>
+<input id="hand" type="range" min="30" max="250" step="5"></div>
 <div class="row"><div class="lab"><span>Position along taskbar</span><span class="val" id="pv"></span></div>
 <input id="pos" type="range" min="0" max="100" step="1"></div>
 <div class="row"><label class="chk"><input id="vis" type="checkbox"> Show on taskbar</label></div>
@@ -27,6 +29,7 @@ select{width:100%;padding:8px;border-radius:8px;border:1px solid #2a3142;backgro
 const $=id=>document.getElementById(id);
 var show=function(s){
   $('scale').value=Math.round(s.scale*100);$('sv').textContent=Math.round(s.scale*100)+'%';
+  $('hand').value=Math.round((s.handScale??1)*100);$('hv').textContent=Math.round((s.handScale??1)*100)+'%';
   $('pos').value=Math.round(s.position*100);$('pv').textContent=Math.round(s.position*100)+'%';
   $('startup').checked=s.startup;$('auto').checked=s.autoHide;$('vis').checked=s.visible;
 };
@@ -36,6 +39,7 @@ jack.getCharacters().then(c=>{cs=c;fill();if(last)$('char').value=last.character
 $('char').onchange=e=>{const [c,k]=e.target.value.split('/');jack.setSettings({character:c,skin:k})};
 jack.getSettings().then(show);jack.onSettings(show);
 $('scale').oninput=e=>{$('sv').textContent=e.target.value+'%';jack.setSettings({scale:e.target.value/100})};
+$('hand').oninput=e=>{$('hv').textContent=e.target.value+'%';jack.setSettings({handScale:e.target.value/100})};
 $('pos').oninput=e=>{$('pv').textContent=e.target.value+'%';jack.setSettings({position:e.target.value/100})};
 $('startup').onchange=e=>jack.setSettings({startup:e.target.checked});
 $('auto').onchange=e=>jack.setSettings({autoHide:e.target.checked});

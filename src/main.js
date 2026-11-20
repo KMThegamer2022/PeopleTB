@@ -14,7 +14,7 @@ app.disableHardwareAcceleration();
 const BASE_W = 330;
 const ABOVE = 190; // height of the part of the pet above the taskbar (base px)
 
-const defaults = { scale: 1.5, position: 0.5, startup: false, visible: true, autoHide: true, character: 'jack', skin: 'default' };
+const defaults = { scale: 1.5, handScale: 1, position: 0.5, startup: false, visible: true, autoHide: true, character: 'jack', skin: 'default' };
 let fullscreen = false, psProc = null, hideTimer = null;
 let settings = { ...defaults };
 let pet, settingsWin, tray;
@@ -246,6 +246,7 @@ else {
       const prev = settings.startup, prevVis = settings.visible, prevAutoHide = settings.autoHide;
       settings = { ...settings, ...patch };
       settings.scale = Math.min(2.5, Math.max(0.4, Number(settings.scale) || 1));
+      settings.handScale = Math.min(2.5, Math.max(0.3, Number(settings.handScale) || 1));
       settings.position = Math.min(1, Math.max(0, Number(settings.position) || 0));
       save(); place();
       if (prev !== settings.startup) applyStartup();

@@ -141,8 +141,9 @@ function drawSpinner(now) {
 
 // ---------- character ----------
 const HAND_K = 0.34, HAND_OFF = 121;
+let handScale = 1;
 function drawHand(img, cx, bottom) {
-  const w = img.width * HAND_K, h = img.height * HAND_K;
+  const w = img.width * HAND_K * handScale, h = img.height * HAND_K * handScale;
   const tint = clamp01(heat);
   if (tint < 0.02) { pctx.drawImage(img, cx - w / 2, bottom - h, w, h); return; }
   // red-hot tint: draw the hand, then paint red over only its opaque pixels
@@ -259,11 +260,12 @@ async function applyCharacter(st) {
 }
 function applySettings(st) {
   if (st.scale && st.scale !== scale) { scale = st.scale; resize(); }
+  if (typeof st.handScale === 'number') handScale = st.handScale;
   if (!dragging && typeof st.position === 'number') position = st.position;
   return applyCharacter(st);
 }
 Promise.all([load('../assets/hand-left.webp'), load('../assets/hand-right.webp'), window.jack.getCharacters(), window.jack.getSettings()])
-  .then(async ([l, r, c, st]) => { handL = l; handR = r; chars = c; scale = st.scale || scale; position = st.position; await applyCharacter(st); resize(); ready = true; jobEnd(); });
+  .then(async ([l, r, c, st]) => { handL = l; handR = r; chars = c; scale = st.scale || scale; handScale = st.handScale || handScale; position = st.position; await applyCharacter(st); resize(); ready = true; jobEnd(); });
 window.jack.onSettings(applySettings);
 resize();
 requestAnimationFrame(loop);
