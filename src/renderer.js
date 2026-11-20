@@ -144,8 +144,12 @@ const HAND_K = 0.34, HAND_OFF = 121;
 let handScale = 1;
 function drawHand(img, cx, bottom) {
   const w = img.width * HAND_K * handScale, h = img.height * HAND_K * handScale;
+  // bigger hands sink further down (into the taskbar) instead of only growing upward, so they still
+  // read as gripping the edge rather than floating above it
+  const sink = Math.max(0, h - img.height * HAND_K) * 0.6;
+  const y = bottom - h + sink;
   const tint = clamp01(heat);
-  if (tint < 0.02) { pctx.drawImage(img, cx - w / 2, bottom - h, w, h); return; }
+  if (tint < 0.02) { pctx.drawImage(img, cx - w / 2, y, w, h); return; }
   // red-hot tint: draw the hand, then paint red over only its opaque pixels
   tintCv.width = img.width; tintCv.height = img.height;
   tctx.clearRect(0, 0, tintCv.width, tintCv.height);
@@ -154,7 +158,7 @@ function drawHand(img, cx, bottom) {
   tctx.fillStyle = `rgba(255,${Math.round(40 - tint * 20)},10,${(0.8 * tint).toFixed(3)})`;
   tctx.fillRect(0, 0, tintCv.width, tintCv.height);
   tctx.globalCompositeOperation = 'source-over';
-  pctx.drawImage(tintCv, cx - w / 2, bottom - h, w, h);
+  pctx.drawImage(tintCv, cx - w / 2, y, w, h);
 }
 
 function drawPet(t, dt) {
