@@ -142,11 +142,12 @@ function drawSpinner(now) {
 // ---------- character ----------
 const HAND_K = 0.34, HAND_OFF = 121;
 let handScale = 1;
-function drawHand(img, cx, bottom) {
+function drawHand(img, cx, dropPx) {
   const w = img.width * HAND_K * handScale, h = img.height * HAND_K * handScale;
-  // a hand always sinks a fixed fraction of its own height down (behind the taskbar), at every size
-  // including the default, so it keeps reading as gripping the edge rather than floating above it
-  const y = bottom - h + h * 0.3;
+  // Anchored to the taskbar's visual top edge (ABOVE), not the window's own bottom - that included
+  // the OS's own taskbar-thickness gap, which swamped small hands entirely at low handScale. This way
+  // the same fraction of the hand always shows above the edge, at any size and any taskbar thickness.
+  const y = ABOVE - h * 0.7 + dropPx;
   const tint = clamp01(heat);
   if (tint < 0.02) { pctx.drawImage(img, cx - w / 2, y, w, h); return; }
   // red-hot tint: draw the hand, then paint red over only its opaque pixels
@@ -188,11 +189,10 @@ function drawPet(t, dt) {
   pctx.drawImage(head, -headW / 2, -headH + bob, headW, headH);
   pctx.restore();
 
-  // hands IN FRONT of the taskbar, resting on its bottom edge, fingers reaching up over the top
-  const bottom = petCv.height / k;
+  // hands IN FRONT of the taskbar, hooked over its top edge, fingers reaching up over the top
   const dropPx = handDrop * 70;
-  drawHand(handL, cx - HAND_OFF, bottom + dropPx);
-  drawHand(handR, cx + HAND_OFF, bottom + dropPx);
+  drawHand(handL, cx - HAND_OFF, dropPx);
+  drawHand(handR, cx + HAND_OFF, dropPx);
 }
 
 function draw(t) {
