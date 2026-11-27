@@ -1,22 +1,54 @@
-// Update checking/downloading without any Electron dependency (so it can be tested with plain node).
+// Update checking/downloading. Falls back to Electron's net module (so it can still be tested
+// with plain node, where that fallback simply never triggers).
 const https = require('https');
 const fs = require('fs');
 
 const UA = 'PeopleTB-Updater';
 
-function request(url, { follow = true, maxRedirects = 6, headers = {} } = {}) {
+// Networks that HTTPS-inspect traffic (school/work filters like Fortinet) re-sign certificates
+// with their own CA. Node's https trusts only its own bundled CA list, so it rejects that
+// certificate even though Windows (and a real browser) trusts it. Electron's net module uses
+// Chromium's network stack instead, which does consult the OS certificate store, so it succeeds
+// the same way a browser would - we fall back to it when node's https hits one of these errors.
+const CERT_CODES = new Set([
+  'CERT_HAS_EXPIRED', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'UNABLE_TO_VERIFY_LEADING_CERT',
+  'SELF_SIGNED_CERT_IN_CHAIN', 'DEPTH_ZERO_SELF_SIGNED_CERT', 'ERR_TLS_CERT_ALTNAME_INVALID'
+]);
+function isCertError(e) { return !!(e && CERT_CODES.has(e.code)); }
+
+function nodeGet(url, headers) {
   return new Promise((resolve, reject) => {
-    const req = https.get(url, { headers: { 'User-Agent': UA, ...headers } }, (res) => {
-      if (follow && [301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location && maxRedirects > 0) {
-        res.resume();
-        const next = new URL(res.headers.location, url).toString();
-        return resolve(request(next, { follow, maxRedirects: maxRedirects - 1, headers }));
-      }
-      resolve({ status: res.statusCode, headers: res.headers, res });
-    });
+    const req = https.get(url, { headers }, (res) => resolve({ statusCode: res.statusCode, headers: res.headers, res }));
     req.setTimeout(20000, () => req.destroy(new Error('timeout')));
     req.on('error', reject);
   });
+}
+
+// Only reachable inside Electron's main process, after app ready; required lazily so this file
+// still loads (and the node transport above still works) when run standalone under plain node.
+function electronGet(url, headers) {
+  const { net } = require('electron');
+  return new Promise((resolve, reject) => {
+    const req = net.request({ method: 'GET', url });
+    for (const [k, v] of Object.entries(headers)) req.setHeader(k, v);
+    req.on('response', (res) => resolve({ statusCode: res.statusCode, headers: res.headers, res }));
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+function request(url, { follow = true, maxRedirects = 6, headers = {} } = {}) {
+  const allHeaders = { 'User-Agent': UA, ...headers };
+  return nodeGet(url, allHeaders)
+    .catch((e) => { if (isCertError(e)) return electronGet(url, allHeaders); throw e; })
+    .then((r) => {
+      if (follow && [301, 302, 303, 307, 308].includes(r.statusCode) && r.headers.location && maxRedirects > 0) {
+        r.res.resume();
+        const next = new URL(r.headers.location, url).toString();
+        return request(next, { follow, maxRedirects: maxRedirects - 1, headers });
+      }
+      return { status: r.statusCode, headers: r.headers, res: r.res };
+    });
 }
 async function text(url, opts) {
   const r = await request(url, opts);
@@ -72,4 +104,4 @@ async function download(url, dest, onProgress) {
   return dest;
 }
 
-module.exports = { latestRelease, download, cmp };
+module.exports = { latestRelease, download, cmp, isCertError };

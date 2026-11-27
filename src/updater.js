@@ -8,15 +8,11 @@ const REPO = 'KMThegamer2022/PeopleTB';
 const artifact = (v) => `PeopleTB-Setup-${v}.exe`;
 let busy = false;
 
-// Networks that HTTPS-inspect traffic (school/work filters like Fortinet) re-sign certificates
-// with their own CA; Node trusts only its own bundled list, so this looks like a bad cert to us
-// even though Windows (and the browser) trusts it. Not a problem with PeopleTB or GitHub.
-const CERT_CODES = new Set([
-  'CERT_HAS_EXPIRED', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'UNABLE_TO_VERIFY_LEADING_CERT',
-  'SELF_SIGNED_CERT_IN_CHAIN', 'DEPTH_ZERO_SELF_SIGNED_CERT', 'ERR_TLS_CERT_ALTNAME_INVALID'
-]);
+// updater-core already retries certificate errors over Electron's net module (which consults the
+// OS certificate store, like a browser), so reaching here means that fallback also failed - still
+// worth telling the user it's their network, not PeopleTB or GitHub.
 function describeError(e) {
-  if (e && CERT_CODES.has(e.code)) {
+  if (core.isCertError(e)) {
     return 'This network appears to be intercepting HTTPS connections (common on school/work Wi-Fi, '
       + 'e.g. Fortinet filtering) and PeopleTB doesn\'t trust its certificate. Try again on a different '
       + 'network, or ask network admin/IT about it. (' + e.code + ')';
