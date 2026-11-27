@@ -96,6 +96,18 @@
           "width": 165
         }
       ]
+    },
+    {
+      "id": "liam",
+      "name": "Liam",
+      "skins": [
+        {
+          "id": "default",
+          "name": "Default",
+          "head": "liam/head.webp",
+          "width": 165
+        }
+      ]
     }
   ]
 }
