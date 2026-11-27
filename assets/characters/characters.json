@@ -48,6 +48,54 @@
           "width": 165
         }
       ]
+    },
+    {
+      "id": "arrow",
+      "name": "Arrow",
+      "skins": [
+        {
+          "id": "default",
+          "name": "Default",
+          "head": "arrow/head.webp",
+          "width": 165
+        }
+      ]
+    },
+    {
+      "id": "harrison",
+      "name": "Harrison",
+      "skins": [
+        {
+          "id": "default",
+          "name": "Default",
+          "head": "harrison/head.webp",
+          "width": 165
+        }
+      ]
+    },
+    {
+      "id": "jayden",
+      "name": "Jayden",
+      "skins": [
+        {
+          "id": "default",
+          "name": "Default",
+          "head": "jayden/head.webp",
+          "width": 165
+        }
+      ]
+    },
+    {
+      "id": "reuben",
+      "name": "Reuben",
+      "skins": [
+        {
+          "id": "default",
+          "name": "Default",
+          "head": "reuben/head.webp",
+          "width": 165
+        }
+      ]
     }
   ]
 }

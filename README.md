@@ -22,7 +22,7 @@ Built on Electron 22, the last version that supports Windows 7 / 8 / 8.1 (as wel
 Windows 7 needs SP1 and Aero (desktop composition) enabled for Jack's transparent window.
 
 ## Characters / skins
-Characters: Jack, James, Oscar, Lewis. They live in `assets/characters/`. To add one: drop a head-and-shoulders PNG (transparent background) in a new
+Characters: Jack, James, Oscar, Lewis, Arrow, Harrison, Jayden, Reuben. They live in `assets/characters/`. To add one: drop a head-and-shoulders PNG (transparent background) in a new
 folder, add an entry to `assets/characters/characters.json` (several `skins` per character are supported), and it shows up
 in the right-click **Characters → Add…** menu. `tools/cutout.swift` (macOS) removes backgrounds and `tools/make_head.py` crops the sprite.
 All characters share Jack's hands.
